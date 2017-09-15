@@ -235,8 +235,9 @@ for(j in 1: 2){
 			ModTrain$Relative.Form <- ModTrain$Team.Form - ModTrain$Opposition.Form
 			ModTrain$Expected.Shots <- (ModTrain$Team.Shots.on.Target.Form + ModTrain$Opposition.Shots.Conceded.Form) - (ModTrain$Team.Shots.Conceded.Form + ModTrain$Opposition.Shots.on.Target.Form)
 			ModTrain$Relative.Odds <- ModTrain$Opposition.Odds - ModTrain$Team.Odds
-			#ModTrain$Team_Tier <- ifelse(ModTrain$Team_Tier == 1, "Tier 1", ifelse(ModTrain$Team_Tier == 2, "Tier 2",ifelse(ModTrain$Team_Tier == 3, "Tier 3", "Tier 4" ) ))
-			#ModTrain$Opposition_Tier <- ifelse(ModTrain$Opposition_Tier == 1, "Tier 1", ifelse(ModTrain$Opposition_Tier == 2, "Tier 2",ifelse(ModTrain$Opposition_Tier == 3, "Tier 3", "Tier 4" ) ))
+			ModTrain$Team_Tier <- ifelse(ModTrain$Team_Tier == 1, "Tier 1", ifelse(ModTrain$Team_Tier == 2, "Tier 2",ifelse(ModTrain$Team_Tier == 3, "Tier 3", "Tier 4" ) ))
+			ModTrain$Opposition_Tier <- ifelse(ModTrain$Opposition_Tier == 1, "Tier 1", ifelse(ModTrain$Opposition_Tier == 2, "Tier 2",ifelse(ModTrain$Opposition_Tier == 3, "Tier 3", "Tier 4" ) ))
+			ModTrain$Team_Description <- paste(ModTrain$Team_Tier,ModTrain$Opposition_Tier,ModTrain$Home.Away)
 
 			for (q in 1 : nrow(ModTrain)){
 			ModTrain$Expected.Goal.Difference[q] <- ((ave(rpois(50,ModTrain$Expected.Team.Goals[[q]]))[1] + ModTrain$Team.Handicap[[q]]) - (ave(rpois(50,ModTrain$Expected.Opposition.Goals[[q]]))[1]))
@@ -247,8 +248,8 @@ for(j in 1: 2){
 
 
 			#- we have to feed it the input dataset of all the variables used, so define the formula below
-			variables <- c("Season","Calendar_Season","Team_Tier","Opposition_Tier","Div","Team.Favourite","Expected.Goal.Difference","Team.Form","Opposition.Form","Team.Shots.on.Target.Form",
-			"Opposition.Shots.Conceded.Form","Opposition.Shots.on.Target.Form","Team.Shots.Conceded.Form","Relative.Goals.Form","Home.Away",
+			variables <- c("Season","Calendar_Season","Team_Description","Div","Team.Favourite","Expected.Goal.Difference","Team.Form","Opposition.Form","Team.Shots.on.Target.Form",
+			"Opposition.Shots.Conceded.Form","Opposition.Shots.on.Target.Form","Team.Shots.Conceded.Form","Relative.Goals.Form",
 			"Team.Odds","Draw.Odds","Streak.Probability","Asian.Handicap","Opposition.Odds","Relative.Odds","Expected.Shots","Relative.Form")
 			TDat1 <- ModTrain[,variables]
 			#- but on top of that you can't have categorical variables within the X matrix so to speak
@@ -370,8 +371,9 @@ for(j in 1: 2){
 			PredData$Relative.Form <- PredData$Team.Form - PredData$Opposition.Form
 			PredData$Expected.Shots <- (PredData$Team.Shots.on.Target.Form + PredData$Opposition.Shots.Conceded.Form) - (PredData$Team.Shots.Conceded.Form + PredData$Opposition.Shots.on.Target.Form)
 			PredData$Relative.Odds <- PredData$Opposition.Odds - PredData$Team.Odds
-			#PredData$Team_Tier <- ifelse(PredData$Team_Tier == 1, "Tier 1", ifelse(PredData$Team_Tier == 2, "Tier 2",ifelse(PredData$Team_Tier == 3, "Tier 3", "Tier 4" ) ))
-			#PredData$Opposition_Tier <- ifelse(PredData$Opposition_Tier == 1, "Tier 1", ifelse(PredData$Opposition_Tier == 2, "Tier 2",ifelse(PredData$Opposition_Tier == 3, "Tier 3", "Tier 4" ) ))
+			PredData$Team_Tier <- ifelse(PredData$Team_Tier == 1, "Tier 1", ifelse(PredData$Team_Tier == 2, "Tier 2",ifelse(PredData$Team_Tier == 3, "Tier 3", "Tier 4" ) ))
+			PredData$Opposition_Tier <- ifelse(PredData$Opposition_Tier == 1, "Tier 1", ifelse(PredData$Opposition_Tier == 2, "Tier 2",ifelse(PredData$Opposition_Tier == 3, "Tier 3", "Tier 4" ) ))
+			PredData$Team_Description <- paste(PredData$Team_Tier,PredData$Opposition_Tier,PredData$Home.Away)
 
 			#-sometimes a team won't be playing in the subsequent gameweek so this database will be empty,so move on folks nothing to see here
 			if(nrow(PredData) > 0){
