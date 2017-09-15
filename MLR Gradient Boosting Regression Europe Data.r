@@ -190,6 +190,21 @@ write.csv(PreppedData, "Europe Data For Modelling 2015 2016.csv")
 
 
 #----------------------- Data Prep Over let's play with Models ---------------------------#
+#-- You wouldn't go shopping without your wallet and bags, don't forget your packages
+require(pls)
+require(data.table)
+require(RSNNS)
+require(plyr)
+require(caret)
+require(mlr)
+require(parallelMap)
+require(rgenoud)
+require(DiceKriging)
+require(parallelMap)
+require(mlrMBO)
+require(devtools)
+require(xgboost)
+
 
 #- where we at
 setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
