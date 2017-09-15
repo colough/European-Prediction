@@ -194,6 +194,16 @@ write.csv(PreppedData, "Europe Data For Modelling 2015 2016.csv")
 #- where we at
 setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
  #-load in the data
+
+ DATA <- read.csv("Europe Agg Data Input.csv", header = TRUE)
+
+ #- so what we need to do is create a unique list of the teams involved in the latest season
+ Teams <- DATA[DATA$Season == "2015 2016",5]
+ Teams <- unique(Teams)
+ Teams <- as.data.frame(Teams)
+ TeamData <- data.frame
+
+
 train <- read.csv ("Europe Data For Modelling 2015 2016.csv", header=TRUE)
 #-you have to change the storage of tain$team to character so that the different levels plays nicely with the factors in Teams
 train$Team <- as.character(train$Team)
@@ -360,8 +370,11 @@ for(j in 1: 2){
 				Pmod <- xgb.train(param, dTrain, , nrounds = PM_nrounds)
 
 
-
-			PredData <- train[train$Team == Teams[j,1] & train$Game.Week.Index == i & train$Season == "2015 2016",]
+				# We have to load the full training set with the additional info of the GW to be predicted as well so we don't run in to
+				# an issue where it's trying to split two factors -- then we narrow it down by the last row which is our week to be predicted
+				PredData1 <- train[train$Game.Week.Index > 6 & train$Season != "2015 2016",]
+				PredData2 <- train[train$Game.Week.Index > 6 & train$Game.Week.Index <= i & train$Season == "2015 2016",]
+				PredData <- rbind(PredData1,PredData2)
 
 			#- If any of the extra variables we created in Modtrain are used in the model we need to create them in PredData as well,so that happens here
 			PredData$High.Team.Form <- ifelse(PredData$Team.Form > quantile(PredData$Team.Form)[4], PredData$Team.Form, 0)
@@ -399,7 +412,8 @@ for(j in 1: 2){
 			#PredDat <- normalizeData(PredDat, type="0_1")
 			colnames(PredDat) <- PredDatnames
 
-
+			# Now filter out all the historical rows
+			PredDat <- PredDat[-c(1:(nrow(PredDat)-1)),]
 
 		#- Fit is a matrix of predicted values for each principle component
 		#-Act is the actual result in terms of goal difference
