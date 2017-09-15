@@ -276,7 +276,7 @@ for(j in 1: 2){
             # ok so to start modelling we have to declare a so called 'task', with the
             # dependent and independent variables called out
 			TrainDat <- as.data.frame(TrainDat)
-            trainTask <- makeRegrTask(data = TrainDat,target = "ModTrain.Team.Goal.Diff")
+            trainTask <- makeClassifTask(data = TrainDat,target = "ModTrain.Team.Goal.Diff")
 
             Agg_Results <- data.frame()
 
