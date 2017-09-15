@@ -309,154 +309,154 @@ for(j in 1: 2){
             #------------------------------ Gradient Boosting ------------------------------# 6 minutes
             ## Tuning in inner resampling loop
 
-	            parallelStartSocket(3)
 
-	            ptm <- proc.time()
-	            ps = makeParamSet(
-	              makeIntegerParam("nrounds", lower = 1, upper = 30),
-	              makeIntegerParam("max_depth", lower = 3, upper = 20),
-	              makeNumericParam("lambda", lower=0.55, upper=0.60),
-	              makeNumericParam("eta", lower = 0.001, upper = 0.5),
-	              makeNumericParam("subsample", lower = 0.1, upper = 0.8),
-	              makeNumericParam("min_child_weight", lower = 1, upper = 5),
-				  makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8)
-	              #makeDiscreteParam(id = "objective", values = c("reg:linear"), tunable = F)
-	            )
-	            ctrl = makeTuneControlMBO()
-	            inner = makeResampleDesc("Subsample", iters = 2)
-	            lrn = makeTuneWrapper("classif.xgboost", resampling = inner, par.set = ps, control = ctrl, show.info = FALSE)
+		  parallelStartSocket(3)
 
-	            ## Outer resampling loop
-	            outer = makeResampleDesc("CV", iters = 3)
-	            r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult, show.info = FALSE)
-	            parallelStop()
-	            proc.time()-ptm
+		  ptm <- proc.time()
+		  ps = makeParamSet(
+			makeIntegerParam("nrounds", lower = 1, upper = 30),
+			makeIntegerParam("max_depth", lower = 3, upper = 20),
+			makeNumericParam("lambda", lower=0.55, upper=0.60),
+			makeNumericParam("eta", lower = 0.001, upper = 0.5),
+			makeNumericParam("subsample", lower = 0.1, upper = 0.8),
+			makeNumericParam("min_child_weight", lower = 1, upper = 5),
+			makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8),
+			makeDiscreteParam(id = "objective", values = c("multi:softprob"), tunable = F)
+		  )
+		  ctrl = makeTuneControlMBO()
+		  inner = makeResampleDesc("Subsample", iters = 2)
+		  lrn = makeTuneWrapper("classif.xgboost", resampling = inner, par.set = ps, control = ctrl, show.info = FALSE)
 
-				## pick out the best performing model type (not normally recommended)
-				# this is a little messy but we summarize the optimal fits
-				for (p in 1:length(r$extract)){
-				    a <- unlist(r$extract[[p]])
-				    nrounds <- a$x.nrounds
-				    max_depth <- a$x.max_depth
-				    lambda <- a$x.lambda
-				    Score <- a$y.mse.test.mean
-				    eta <- a$x.eta
-				    subsample <- a$x.subsample
-				    min_child_weight <- a$x.min_child_weight
-				    colsample_bytree <- a$x.colsample_bytree
-				    objective <- "reg:linear"
-				Classifier_Results <- as.data.frame(cbind(nrounds, max_depth, lambda, eta, Score, subsample, min_child_weight, colsample_bytree, objective))
-				Agg_Results <- rbindlist(list(Agg_Results,Classifier_Results), fill=T)
-				}
+		  ## Outer resampling loop
+		  outer = makeResampleDesc("CV", iters = 3)
+		  r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult, show.info = FALSE)
+		  parallelStop()
+		  proc.time()-ptm
 
-				Agg_Results <- as.data.frame(Agg_Results)
-				for(l in c(1:8)){
-				    d <- lapply(Agg_Results[,l], as.character, stringsAsFactors=FALSE)
-				    d <- unlist(d)
-				    d <- as.data.frame(d)
-				    d[,1] <- as.character(d[,1])
-				    d[,1] <- as.numeric(d[,1])
-				    Agg_Results[,l] <- d
-				}
+		  ## pick out the best performing model type (not normally recommended)
+		  # this is a little messy but we summarize the optimal fits
+		  for (p in 1:length(r$extract)){
+			  a <- unlist(r$extract[[p]])
+			  nrounds <- a$x.nrounds
+			  max_depth <- a$x.max_depth
+			  lambda <- a$x.lambda
+			  Score <- a$y.mmce.test.mean
+			  eta <- a$x.eta
+			  subsample <- a$x.subsample
+			  min_child_weight <- a$x.min_child_weight
+			  colsample_bytree <- a$x.colsample_bytree
+			  objective <- "multi:softprob"
+		  Classifier_Results <- as.data.frame(cbind(nrounds, max_depth, lambda, eta, Score, subsample, min_child_weight, colsample_bytree, objective))
+		  Agg_Results <- rbindlist(list(Agg_Results,Classifier_Results), fill=T)
+		  }
 
-
-				Agg_Results[is.na(Agg_Results)] <- 0
-
-				# find the most accurate row
-				Model_Structure <- Agg_Results[which.min(Agg_Results$Score),]
-				# Transform Traindat back to being just numeric for the actual model build
-				TrainDat <- TrainDat[,-ncol(TrainDat)]
-				# Define the ideal model structure
-				PM_nrounds <- as.numeric(as.character(Model_Structure$nrounds))
-				PM_max_depth <- as.character(Model_Structure$max_depth)
-				PM_lambda <- as.character(Model_Structure$lambda)
-				PM_eta <- as.character(Model_Structure$eta)
-				PM_subsample <- as.character(Model_Structure$subsample)
-				PM_min_child_weight <- as.character(Model_Structure$min_child_weight)
-				PM_colsample_bytree <- as.character(Model_Structure$colsample_bytree)
-				PM_objective <- as.character(Model_Structure$objective)
-
-				TrainDat <- cbind(TrainDat,Tester)
-				TrainDat <- as.matrix(TrainDat)
-
-				dTrain <- xgb.DMatrix(TrainDat, label = TrainDat[,ncol(TrainDat)])
-				param <- list(max_depth = PM_max_depth, lambda = PM_lambda, eta = PM_eta, subsample = PM_subsample, min_child_weight = PM_min_child_weight,
-								colsample_bytree = PM_colsample_bytree)
-				Pmod <- xgb.train(param, dTrain, , nrounds = PM_nrounds)
+		  Agg_Results <- as.data.frame(Agg_Results)
+		  for(l in c(1:8)){
+			  d <- lapply(Agg_Results[,l], as.character, stringsAsFactors=FALSE)
+			  d <- unlist(d)
+			  d <- as.data.frame(d)
+			  d[,1] <- as.character(d[,1])
+			  d[,1] <- as.numeric(d[,1])
+			  Agg_Results[,l] <- d
+		  }
 
 
-				# We have to load the full training set with the additional info of the GW to be predicted as well so we don't run in to
-				# an issue where it's trying to split two factors -- then we narrow it down by the last row which is our week to be predicted
-				PredData1 <- train[train$Game.Week.Index > 6 & train$Season != "2015 2016",]
-				PredData2 <- train[train$Game.Week.Index > 6 & train$Game.Week.Index <= i & train$Season == "2015 2016",]
-				PredData <- rbind(PredData1,PredData2)
+		  Agg_Results[is.na(Agg_Results)] <- 0
 
-			#- If any of the extra variables we created in Modtrain are used in the model we need to create them in PredData as well,so that happens here
-			PredData$High.Team.Form <- ifelse(PredData$Team.Form > quantile(PredData$Team.Form)[4], PredData$Team.Form, 0)
-			PredData$Low.Team.Form <- ifelse(PredData$Team.Form < quantile(PredData$Team.Form)[2], PredData$Team.Form, 0)
-			PredData$High.Opposition.Form <- ifelse(PredData$Opposition.Form > quantile(PredData$Opposition.Form)[4], PredData$Opposition.Form, 0)
-			PredData$Low.Opposition.Form <- ifelse(PredData$Opposition.Form < quantile(PredData$Opposition.Form)[2], PredData$Opposition.Form, 0)
-			PredData$Relative.Form <- PredData$Team.Form - PredData$Opposition.Form
-			PredData$Expected.Shots <- (PredData$Team.Shots.on.Target.Form + PredData$Opposition.Shots.Conceded.Form) - (PredData$Team.Shots.Conceded.Form + PredData$Opposition.Shots.on.Target.Form)
-			PredData$Relative.Odds <- PredData$Opposition.Odds - PredData$Team.Odds
-			PredData$Team_Tier <- ifelse(PredData$Team_Tier == 1, "Tier 1", ifelse(PredData$Team_Tier == 2, "Tier 2",ifelse(PredData$Team_Tier == 3, "Tier 3", "Tier 4" ) ))
-			PredData$Opposition_Tier <- ifelse(PredData$Opposition_Tier == 1, "Tier 1", ifelse(PredData$Opposition_Tier == 2, "Tier 2",ifelse(PredData$Opposition_Tier == 3, "Tier 3", "Tier 4" ) ))
-			PredData$Team_Description <- paste(PredData$Team_Tier,PredData$Opposition_Tier,PredData$Home.Away)
+		  # find the most accurate row
+		  Model_Structure <- Agg_Results[which.max(Agg_Results$Score),]
+		  # Transform Traindat back to being just numeric for the actual model build
+		  TrainDat <- TrainDat[,-ncol(TrainDat)]
+		  # Define the ideal model structure
+		  PM_nrounds <- as.numeric(as.character(Model_Structure$nrounds))
+		  PM_max_depth <- as.character(Model_Structure$max_depth)
+		  PM_lambda <- as.character(Model_Structure$lambda)
+		  PM_eta <- as.character(Model_Structure$eta)
+		  PM_subsample <- as.character(Model_Structure$subsample)
+		  PM_min_child_weight <- as.character(Model_Structure$min_child_weight)
+		  PM_colsample_bytree <- as.character(Model_Structure$colsample_bytree)
+		  PM_objective <- as.character(Model_Structure$objective)
 
-			#-sometimes a team won't be playing in the subsequent gameweek so this database will be empty,so move on folks nothing to see here
-			if(nrow(PredData) > 0){
-			PredData$Expected.Team.Goals <- (PredData$Team.Shots.on.Target.Form + PredData$Opposition.Shots.Conceded.Form)
-			PredData$Expected.Opposition.Goals <- (PredData$Opposition.Shots.on.Target.Form + PredData$Team.Shots.Conceded.Form)
-			for (q in 1 : nrow(PredData)){
-			PredData$Expected.Goal.Difference[q] <- (ave(rpois(50,PredData$Expected.Team.Goals[[q]]))[1]  + PredData$Team.Handicap[[q]]) - ave(rpois(50,PredData$Expected.Opposition.Goals[[q]]))[1]
-			}
-
-			PredData$Team.Goal.Diff <- ifelse(PredData$Team.Goal.Diff > 0, 2, ifelse(PredData$Team.Goal.Diff < 0, 0, 1))
-			PredData$Team.Goal.Diff <- as.factor(PredData$Team.Goal.Diff)
+		  TrainDat <- as.matrix(TrainDat)
+		  Tester <- as.matrix(Tester)
+		  dTrain <- xgb.DMatrix(TrainDat, label = Tester)
+		  param <- list(max_depth = PM_max_depth, lambda = PM_lambda, eta = PM_eta, subsample = PM_subsample, min_child_weight = PM_min_child_weight,
+						  colsample_bytree = PM_colsample_bytree)
+		  Pmod <- xgb.train(param, dTrain, , nrounds = PM_nrounds, objective = PM_objective, num_class = 3)
 
 
-			if( PredData$Opposition %in% ModTrain$Opposition){
-			#- we need to set up PredData to be in the same format as the Training and Test data
-			PDat1 <- PredData[,variables]
-			#- but on top of that you can't have categorical variables within the X matrix so to speak
-			#- so we use a function to turn our categorical stuff into numeric data
-			PDat2 <- dummyVars("~.",data=PDat1)
-			PredDat <- data.frame(predict(PDat2, newdata = PDat1))
-			#- now we need to normalize the training data
-			PredDatnames <- colnames(PredDat)
-			#PredDat <- normalizeData(PredDat, type="0_1")
-			colnames(PredDat) <- PredDatnames
 
-			# Now filter out all the historical rows
-			PredDat <- PredDat[-c(1:(nrow(PredDat)-1)),]
-			PredDat <- PredDat[-c(1:(nrow(PredDat)-1)),]
-			PredData <- train[train$Team == Teams[j,1] & train$Game.Week.Index == i & train$Season == "2015 2016",]
+		  PredData <- train[train$Team == Teams[j,1] & train$Game.Week.Index == i & train$Season == "2015 2016",]
+
+		  #- If any of the extra variables we created in Modtrain are used in the model we need to create them in PredData as well,so that happens here
+		  PredData$High.Team.Form <- ifelse(PredData$Team.Form > quantile(PredData$Team.Form)[4], PredData$Team.Form, 0)
+		  PredData$Low.Team.Form <- ifelse(PredData$Team.Form < quantile(PredData$Team.Form)[2], PredData$Team.Form, 0)
+		  PredData$High.Opposition.Form <- ifelse(PredData$Opposition.Form > quantile(PredData$Opposition.Form)[4], PredData$Opposition.Form, 0)
+		  PredData$Low.Opposition.Form <- ifelse(PredData$Opposition.Form < quantile(PredData$Opposition.Form)[2], PredData$Opposition.Form, 0)
+		  PredData$Relative.Form <- PredData$Team.Form - PredData$Opposition.Form
+		  PredData$Expected.Shots <- (PredData$Team.Shots.on.Target.Form + PredData$Opposition.Shots.Conceded.Form) - (PredData$Team.Shots.Conceded.Form + PredData$Opposition.Shots.on.Target.Form)
+		  PredData$Relative.Odds <- PredData$Opposition.Odds - PredData$Team.Odds
+		  PredData$Team_Tier <- ifelse(PredData$Team_Tier == 1, "Tier 1", ifelse(PredData$Team_Tier == 2, "Tier 2",ifelse(PredData$Team_Tier == 3, "Tier 3", "Tier 4" ) ))
+		  PredData$Opposition_Tier <- ifelse(PredData$Opposition_Tier == 1, "Tier 1", ifelse(PredData$Opposition_Tier == 2, "Tier 2",ifelse(PredData$Opposition_Tier == 3, "Tier 3", "Tier 4" ) ))
+		  PredData$Team_Description <- paste(PredData$Team_Tier,PredData$Opposition_Tier,PredData$Home.Away)
 
 
-	p1 <- PredData$Team
-	p1 <- as.data.frame(p1)
-	p2 <- "2015 2016"
-	p3 <- PredData$Opposition
-	p3 <- as.data.frame(p3)
-	p4 <- PredData$Game.Week.Index
-	p4 <- as.data.frame(p4)
+		  #-sometimes a team won't be playing in the subsequent gameweek so this database will be empty,so move on folks nothing to see here
+		  if(nrow(PredData) > 0){
+		  PredData$Expected.Team.Goals <- (PredData$Team.Shots.on.Target.Form + PredData$Opposition.Shots.Conceded.Form)
+		  PredData$Expected.Opposition.Goals <- (PredData$Opposition.Shots.on.Target.Form + PredData$Team.Shots.Conceded.Form)
+		  for (q in 1 : nrow(PredData)){
+		  PredData$Expected.Goal.Difference[q] <- (ave(rpois(50,PredData$Expected.Team.Goals[[q]]))[1]  + PredData$Team.Handicap[[q]]) - ave(rpois(50,PredData$Expected.Opposition.Goals[[q]]))[1]
+		  }
 
-	PredDat <- as.matrix(PredDat)
-	PredDat <- xgb.DMatrix(PredDat)
-	#-now we are back to stitching our prediction table together
-	p5a <- predict(Pmod, PredDat) #- this gives a prediction for each principle component
-	p5a <- as.data.frame(p5a)
-	p5b <- ncol(p5a)
-	p5 <- p5a[,ToStp[1,5]] #- this select the elbow pc from the prediction matrix
-	p5 <- as.data.frame(p5)
-	AggP <- cbind(p1,p2,p3,p4,p5,ToStp[,2],ToStp[,3],ToStp[,4]) #- stitched together
-	colnames(AggP) <- c("Team", "Season", "Opposition", "Game.Week.Index", "Prediction", "Pos C-Value", "Neg C-Value", "Max Accuracy")
+		  #PredData$Team.Goal.Diff <- ifelse(PredData$Team.Goal.Diff > 0, 2, ifelse(PredData$Team.Goal.Diff < 0, 0, 1))
+		  #PredData$Team.Goal.Diff <- as.factor(PredData$Team.Goal.Diff)
 
-	#- save the results
-PredResults <- rbindlist(list(PredResults,AggP))
 
-	}
-	}
+		  if( PredData$Opposition %in% ModTrain$Opposition){
+		  #- we need to set up PredData to be in the same format as the Training and Test data
+		  PDat1 <- PredData[,variables]
+		  #- but on top of that you can't have categorical variables within the X matrix so to speak
+		  #- so we use a function to turn our categorical stuff into numeric data
+		  PDat2 <- dummyVars("~.",data=PDat1)
+		  PredDat <- data.frame(predict(PDat2, newdata = PDat1))
+		  #- now we need to normalize the training data
+		  PredDatnames <- colnames(PredDat)
+		  PredDat <- normalizeData(PredDat, type="0_1")
+		  colnames(PredDat) <- PredDatnames
+			  PredDat <- xgb.DMatrix(PredDat)
+
+#- Fit is a matrix of predicted values for each principle component
+#-Act is the actual result in terms of goal difference
+Fit <- predict(Pmod, PredDat)
+Fit <- as.data.table(Fit)
+# have to split up the predictions
+Fit_index <- as.data.frame(rep(c(0,1,2),nrow(Fit)/3))
+colnames(Fit_index) <- "Fit_Index"
+Fit <- cbind(Fit,Fit_index)
+P_Draw <- Fit[ Fit_Index == 1 , 1]
+P_Opposition <- Fit[ Fit_Index == 0 , 1]
+P_Team <- Fit[ Fit_Index == 2 , 1]
+
+
+p1 <- PredData$Team
+p1 <- as.data.frame(p1)
+p2 <- "2015 2016"
+p3 <- PredData$Opposition
+p3 <- as.data.frame(p3)
+p4 <- PredData$Game.Week.Index
+p4 <- as.data.frame(p4)
+
+			  #-now we are back to stitching our prediction table together
+			  AggP <- cbind(p1,p2,p3,p4,P_Draw,P_Opposition,P_Team) #- stitched together
+			  colnames(AggP) <- c("Team", "Season", "Opposition", "Game.Week.Index", "P-Draw","P-Opposition","P-Team")
+
+			  #- save the results
+			  PredResults <- rbindlist(list(PredResults,AggP))
+
+			  }
+			  }
+
 }
 }
 
