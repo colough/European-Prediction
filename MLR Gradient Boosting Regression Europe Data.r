@@ -429,6 +429,8 @@ for(j in 1: 2){
 
 			# Now filter out all the historical rows
 			PredDat <- PredDat[-c(1:(nrow(PredDat)-1)),]
+			PredDat <- PredDat[-c(1:(nrow(PredDat)-1)),]
+			PredData <- train[train$Team == Teams[j,1] & train$Game.Week.Index == i & train$Season == "2015 2016",]
 
 		#- Fit is a matrix of predicted values for each principle component
 		#-Act is the actual result in terms of goal difference
