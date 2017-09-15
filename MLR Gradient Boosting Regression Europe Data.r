@@ -1,5 +1,5 @@
 # this file tests a fully automated season prediction for one team in France
-
+# this is a test update
 #-- You wouldn't go shopping without your wallet and bags, don't forget your packages
 require(pls)
 require(data.table)
