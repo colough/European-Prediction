@@ -17,7 +17,8 @@ require(xgboost)
 
 
 #-which project folder we want to work in
-setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
+#setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
+setwd ("C:/Users/ciana/Documents/Football Predictions/Europe")
 DATA <- read.csv("Europe Agg Data Input.csv", header = TRUE)
 
 #- so what we need to do is create a unique list of the teams involved in the latest season
@@ -208,6 +209,7 @@ require(xgboost)
 
 #- where we at
 setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
+setwd ("C:/Users/ciana/Documents/Temp/Update/Football Predictions/Europe")
  #-load in the data
 
  DATA <- read.csv("Europe Agg Data Input.csv", header = TRUE)
