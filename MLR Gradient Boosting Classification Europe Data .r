@@ -277,8 +277,10 @@ for(j in 1: 2){
 			#- we have to feed it the input dataset of all the variables used, so define the formula below
 			variables <- c("Season","Calendar_Season","Team_Description","Div","Team.Favourite","Expected.Goal.Difference","Team.Form","Opposition.Form","Team.Shots.on.Target.Form",
 			"Opposition.Shots.Conceded.Form","Opposition.Shots.on.Target.Form","Team.Shots.Conceded.Form","Relative.Goals.Form",
-			"Team.Odds","Draw.Odds","Streak.Probability","Asian.Handicap","Opposition.Odds","Relative.Odds","Expected.Shots","Relative.Form")
+			"Team.Odds","Draw.Odds","Streak.Probability","Asian.Handicap","Opposition.Odds","Relative.Odds","Expected.Shots","Relative.Form", "Team", "Game.Week.Index")
 			TDat1 <- ModTrain[,variables]
+			# take out the team and game week, we actually just need them later for the pred data
+			TDat1 <- subset(TDat1, select=-c(Team, Game.Week.Index))
 			#- but on top of that you can't have categorical variables within the X matrix so to speak
 			#- so we use a function to turn our categorical stuff into numeric data
 			TDat2 <- dummyVars("~.",data=TDat1)
@@ -388,8 +390,8 @@ for(j in 1: 2){
 
 
 
-		  PredData <- train[train$Team == Teams[j,1] & train$Game.Week.Index == i & train$Season == "2015 2016",]
-
+		  #PredData <- train[train$Team == Teams[j,1] & train$Game.Week.Index == i & train$Season == "2015 2016",]
+		  PredData <- train[train$Game.Week.Index == i & train$Season == "2015 2016",]
 		  #- If any of the extra variables we created in Modtrain are used in the model we need to create them in PredData as well,so that happens here
 		  PredData$High.Team.Form <- ifelse(PredData$Team.Form > quantile(PredData$Team.Form)[4], PredData$Team.Form, 0)
 		  PredData$Low.Team.Form <- ifelse(PredData$Team.Form < quantile(PredData$Team.Form)[2], PredData$Team.Form, 0)
@@ -424,9 +426,15 @@ for(j in 1: 2){
 		  PredDat <- data.frame(predict(PDat2, newdata = PDat1))
 		  #- now we need to normalize the training data
 		  PredDatnames <- colnames(PredDat)
-		  PredDat <- normalizeData(PredDat, type="0_1")
+		  #PredDat <- normalizeData(PredDat, type="0_1")
 		  colnames(PredDat) <- PredDatnames
+		  # filter the dataset down a bit, first relevant team data
+		  Team_ID <- paste0("Team",Teams[j,1])
+		  PredDat <- PredDat[PredDat[,match(Team_ID, names(PredDat))] == 1, ]
+		  PredDat <- as.matrix(PredDat[,-c(64:ncol(PredDat))])
 			  PredDat <- xgb.DMatrix(PredDat)
+			  PredData <- train[train$Team == Teams[j,1] & train$Game.Week.Index == i & train$Season == "2015 2016",]
+
 
 #- Fit is a matrix of predicted values for each principle component
 #-Act is the actual result in terms of goal difference
