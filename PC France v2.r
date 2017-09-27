@@ -6,17 +6,17 @@
 #-- You wouldn't go shopping without your wallet and bags, don't forget your packages
 require(pls)
 require(data.table)
-require(RSNNS)
+#require(RSNNS)
 require(plyr)
-require(caret)
-require(mlr)
+#require(caret)
+#require(mlr)
 require(parallelMap)
-require(rgenoud)
-require(DiceKriging)
-require(parallelMap)
-require(mlrMBO)
-require(devtools)
-require(xgboost)
+#require(rgenoud)
+#require(DiceKriging)
+#require(parallelMap)
+#require(mlrMBO)
+#require(devtools)
+#require(xgboost)
 
 
 #- where we at
@@ -55,8 +55,8 @@ for (i in 1:nrow(Teams))
 		for (j in 8:GWRange){
 			#-ModTrain is a subset of our working dataset that we split by each team and for weeks past 6
 
-			ModTrain1 <- train[train$Team == Teams[i,1] & train$Game.Week.Index > 6 & train$Season != "2015 2016",]
-			ModTrain2 <- train[train$Team == Teams[i,1] & train$Game.Week.Index > 6 & train$Game.Week.Index < j & train$Season == "2015 2016",]
+			ModTrain1 <- train[train$Game.Week.Index > 6 & train$Season != "2015 2016",]
+			ModTrain2 <- train[train$Game.Week.Index > 6 & train$Game.Week.Index < j & train$Season == "2015 2016",]
 			ModTrain <- rbind(ModTrain1,ModTrain2)
             ModTrain$High.Team.Form <- ifelse(ModTrain$Team.Form > quantile(ModTrain$Team.Form)[4], ModTrain$Team.Form, 0)
 			ModTrain$Low.Team.Form <- ifelse(ModTrain$Team.Form < quantile(ModTrain$Team.Form)[2], ModTrain$Team.Form, 0)
@@ -78,7 +78,7 @@ for (i in 1:nrow(Teams))
 
 
 			#-then and no bells or whistles here, we run the linear regression
-			Pmod <- mvr(Team.Goal.Diff ~
+			Pmod <- pcr(Team.Goal.Diff ~
 										Season +
                                         Calendar_Season +
                                         Team_Description*Home.Away +
@@ -94,13 +94,13 @@ for (i in 1:nrow(Teams))
                                         Team.Odds +
                                         Draw.Odds +
                                         Streak.Probability +
-                                        Asian.Handicap +
+                                        Team.Handicap +
                                         Opposition.Odds +
                                         Relative.Odds +
                                         Expected.Shots +
                                         Relative.Form, data=ModTrain)
 
-			PredData <- train[train$Team == Teams[i,1] & train$Game.Week.Index == j & train$Season == "2015 2016",]
+			PredData <- train[train$team == Teams[i,1] & train$Game.Week.Index == j & train$Season == "2015 2016",]
             PredData$High.Team.Form <- ifelse(PredData$Team.Form > quantile(PredData$Team.Form)[4], PredData$Team.Form, 0)
              PredData$Low.Team.Form <- ifelse(PredData$Team.Form < quantile(PredData$Team.Form)[2], PredData$Team.Form, 0)
              PredData$High.Opposition.Form <- ifelse(PredData$Opposition.Form > quantile(PredData$Opposition.Form)[4], PredData$Opposition.Form, 0)
@@ -232,13 +232,7 @@ colnames(ToSt) <- c("Team", "Pos C-Value", "Neg C-Value", "Max Accuracy", "Elbow
 
 				PC1 <- match(max(ToSt[,4]),ToSt[,4]) #-this is the row where the maximum accuracy is across the c-values
 ToStp <- ToSt[PC1,] #-ToStp is just going to be that row
-#-this below bit is to make sure that if a team appears more than once in a gameweek we pick up all matches
-ap <- nrow(PredData)
-if(d > 1){
-		for (g in 2:ap){
-		ToStp[g,] <- ToStp[1,]
-		}
-}
+
 
 
 				#-now we are back to stitching our prediction table together
@@ -261,7 +255,7 @@ if(d > 1){
 				}
 		}
 }
-
+}
 
 
 write.csv(PredResults, "PC Reg Extended 2015 2016.csv")

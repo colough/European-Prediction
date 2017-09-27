@@ -208,8 +208,8 @@ require(xgboost)
 
 
 #- where we at
-#setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
-setwd ("C:/Users/ciana/Documents/Temp/Update/Football Predictions/Europe")
+setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
+#setwd ("C:/Users/ciana/Documents/Temp/Update/Football Predictions/Europe")
  #-load in the data
 
  DATA <- read.csv("Europe Agg Data Input.csv", header = TRUE)
