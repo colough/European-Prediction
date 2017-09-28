@@ -1,20 +1,21 @@
 ######--- This file is intended to prep all countries data ---######
 
 # Load packages:
+require(plyr)
 require(data.table)
 
 #-which project folder we want to work in
 setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Data/Pre Prepped")
 Input_Files <- list.files()
 
-for (p in 1: length(Input_Files)){
+for (p in 3:3){
 DATA <- read.csv(Input_Files[p], header = TRUE)
 
 # so what we need to do is create a unique list of the teams involved in the
 # latest season
 Teams <- DATA[,5]
 Teams <- unique(Teams)
-Teams <- as.data_frame(Teams)
+Teams <- as.data.frame(Teams)
 TeamData <- data.frame()
 
 # Then what we do is create the dataset so that instead of having the raw data
@@ -48,7 +49,7 @@ HData$Opposition_Yellow_Cards = HData$Away_Yellow_Cards
 HData$Opposition_Red_Cards = HData$Away_Red_Cards
 HData$Opposition_Goals_Conceded_Form = HData$Away_Goals_Conceded_Form
 HData$Relative_Goals_Form = ((HData$Team_Goals_Scored_Form -
-                                HData$Team_Goals_Conceded_Form) -
+                            HData$Team_Goals_Conceded_Form) -
                                 (HData$Opposition_Goals_Scored_Form -
                                     HData$Opposition_Goals_Conceded_Form))
 HData$Team_Odds = HData$B365H
@@ -121,13 +122,13 @@ TeamData <- as.data.frame(TeamData)
 # variable, also for shits and giggles as this is just the data manipulation
 # stage I'm going to play with data.table
 PreppedData <- data.table(TeamData)
-PreppedData <- PreppedData[order(Team,Season,Game.Week.Index)]
+PreppedData <- PreppedData[order(Team,Season,Game_Week_Index)]
 #-create the points the team scored
-PreppedData$Team.Points <- ifelse(PreppedData$Team_Goal_Diff > 0, 3,
+PreppedData$Team_Points <- ifelse(PreppedData$Team_Goal_Diff > 0, 3,
                             ifelse(PreppedData$Team_Goal_Diff < 0, 0, 1))
 #-creating the lookup table from the average over the first 6 games
 AveStr <- PreppedData[Game_Week_Index <= 6,
-                        .(Initial_Strength = ave(Team.Points)),
+                        .(Initial_Strength = ave(Team_Points)),
                                                 by =.(Season, Team)]
 OppStr <- PreppedData[Game_Week_Index <= 6,
                         .(Opp_Initial_Strength = ave(Team_Points)),
@@ -160,12 +161,12 @@ WinStreakComplete <- data.table()
 for (e in 1:nrow(AveStr)){
 WinStrC <- PreppedData[Team == AveStr[[e,2]] & Season == AveStr[[e,1]],]
 		for (r in 1:nrow(WinStrC)){
-		WinStrC$Win.ID <- ifelse(WinStrC$Team.Goal.Diff >= 0, 1, 0)
+		WinStrC$Win_ID <- ifelse(WinStrC$Team_Goal_Diff >= 0, 1, 0)
 		if(r == 1){
-			WinStrC$Win.Count[r] <- ifelse(WinStrC$Win.ID[r] >0, 1,0)
+			WinStrC$Win_Count[r] <- ifelse(WinStrC$Win_ID[r] >0, 1,0)
 			}else{
-			WinStrC$Win.Count[r] <- ifelse(WinStrC$Win.ID[r] >0,
-                                        WinStrC$Win.Count[[r-1]]+1,0)
+			WinStrC$Win_Count[r] <- ifelse(WinStrC$Win_ID[r] >0,
+                                        WinStrC$Win_Count[[r-1]]+1,0)
 			}
 		}
 		if(r == 1){
@@ -180,20 +181,20 @@ PreppedData <- WinStreakComplete
 rm(WinStreakComplete)
 # now figure out what the average streak is for each team across the
 # model time period
-AveStreak <- PreppedData[,.(Ave.Streak = ave(Win.Count)), by =.(Team)]
+AveStreak <- PreppedData[,.(Ave_Streak = ave(Win_Count)), by =.(Team)]
 AveStreak <- unique(AveStreak)
 PreppedData <- join(PreppedData, AveStreak, by = c("Team"))
 
 #-finally ready to add on what the chances are of increasing the non lose streak
 for(u in 1:nrow(PreppedData)){
 	if(u == 1){
-	PreppedData$Streak.Probability[[1]] <- dpois(PreppedData$Win.Count[[1]],
-                                                PreppedData$Ave.Streak[[1]])
+	PreppedData$Streak_Probability[[1]] <- dpois(PreppedData$Win_Count[[1]],
+                                                PreppedData$Ave_Streak[[1]])
 	}else{
-	PreppedData$Streak.Probability[[u]] <- dpois(PreppedData$Win.Count[[u-1]]+1,
-                                                PreppedData$Ave.Streak[[u]])
+	PreppedData$Streak_Probability[[u]] <- dpois(PreppedData$Win_Count[[u-1]]+1,
+                                                PreppedData$Ave_Streak[[u]])
 	      }
     }
 
-write.csv(PreppedData, paste0("Prepped/Prepped ",Input_Files[p]), row.names=F)
+write.csv(PreppedData, paste0("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Data/Prepped/Prepped ",Input_Files[p]), row.names=F)
 }
