@@ -20,8 +20,8 @@ require(parallelMap)
 
 
 #- where we at
-setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
-#setwd ("C:/Users/ciana/Documents/Temp/Update/Football Predictions/Europe")
+#setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
+setwd ("C:/Users/ciana/Documents/Temp/Update/Football Predictions/Europe")
  #-load in the data
 
  DATA <- read.csv("Europe Agg Data Input.csv", header = TRUE)
@@ -80,25 +80,25 @@ for (i in 1:nrow(Teams))
 			#-then and no bells or whistles here, we run the linear regression
 			Pmod <- pcr(Team.Goal.Diff ~
 										Season +
-                                        Calendar_Season +
-                                        Team_Description*Home.Away +
+                    Calendar_Season +
+                    Team_Description*Home.Away +
 										Team.Favourite +
-                                        Div +
+                    Div +
 										Home.Away +
 										Expected.Goal.Difference +
-                                        Team.Form +
-                                        Opposition.Form +
-                                        (Team.Shots.on.Target.Form - Opposition.Shots.Conceded.Form) +
-                                        (Opposition.Shots.on.Target.Form - Team.Shots.Conceded.Form) +
-                                        Relative.Goals.Form +
-                                        Team.Odds +
-                                        Draw.Odds +
-                                        Streak.Probability +
-                                        Team.Handicap +
-                                        Opposition.Odds +
-                                        Relative.Odds +
-                                        Expected.Shots +
-                                        Relative.Form, data=ModTrain)
+                    Team.Form +
+                    Opposition.Form +
+                    (Team.Shots.on.Target.Form - Opposition.Shots.Conceded.Form) +
+                    (Opposition.Shots.on.Target.Form - Team.Shots.Conceded.Form) +
+                    Relative.Goals.Form +
+                    Team.Odds +
+                    Draw.Odds +
+                    Streak.Probability +
+                    Team.Handicap +
+                    Opposition.Odds +
+                    Relative.Odds +
+                    Expected.Shots +
+                    Relative.Form, data=ModTrain)
 
 			PredData <- train[train$team == Teams[i,1] & train$Game.Week.Index == j & train$Season == "2015 2016",]
             PredData$High.Team.Form <- ifelse(PredData$Team.Form > quantile(PredData$Team.Form)[4], PredData$Team.Form, 0)
