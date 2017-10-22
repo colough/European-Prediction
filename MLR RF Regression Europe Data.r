@@ -1,193 +1,3 @@
-# this file tests a fully automated season prediction for one team in France
-
-#-- You wouldn't go shopping without your wallet and bags, don't forget your packages
-require(pls)
-require(data.table)
-require(RSNNS)
-require(plyr)
-require(caret)
-require(mlr)
-require(parallelMap)
-require(rgenoud)
-require(DiceKriging)
-require(parallelMap)
-require(mlrMBO)
-require(devtools)
-require(xgboost)
-
-
-#-which project folder we want to work in
-setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
-DATA <- read.csv("Europe Agg Data Input.csv", header = TRUE)
-
-#- so what we need to do is create a unique list of the teams involved in the latest season
-Teams <- DATA[DATA$Season == "2015 2016",5]
-Teams <- unique(Teams)
-Teams <- as.data.frame(Teams)
-TeamData <- data.frame
-
-
-#- Then what we do is create the dataset so that instead of having the raw data and home and away teams we create a data set where
-#- we have each team and their associated opposition for the game week, easier to see correlations that make sense that way
-#- below we split it by home and away and then match up by team
-for(i in 1:nrow(Teams)){
-HData <- DATA[DATA$HomeTeam == Teams[i,1],]
-#-Create the variables that we need - first for all the home matches
-HData$Team.Favourite = HData$Home.Favourite
-HData$Opposition = HData$AwayTeam
-HData$Team.Form = HData$Home.Form
-HData$Opposition.Form = HData$Away.form
-HData$Team.Shots.on.Target.Form = HData$Home.Shots.on.Target.Form
-HData$Opposition.Shots.on.Target.Form = HData$Away.Shots.on.Target.Form
-HData$Team.Shots.Conceded.Form = HData$Home.Shots.Conceded.Form
-HData$Opposition.Shots.Conceded.Form = HData$Away.Shots.Conceded.Form
-HData$Team.Goals.Scored.Form = HData$Home.Goals.Scored.Form
-HData$Opposition.Goals.Scored.Form = HData$Away.Goals.Scored.Form
-HData$Team.Goals.Conceded.Form = HData$Home.Goals.Conceded.Form
-HData$Opposition.Goals.Conceded.Form = HData$Away.Goals.Conceded.Form
-HData$Team.Corners.Form = HData$Home.Corners.Form
-HData$Team.Fouls.Form = HData$Home.Team.Fouls.Form
-HData$Team.Yellow.Cards = HData$Home.Yellow.Cards
-HData$Team.Red.Cards = HData$Home.Red.Cards
-HData$Opposition.Corners.Form = HData$Away.Corners.Form
-HData$Opposition.Fouls.Form = HData$Away.Team.Fouls.Form
-HData$Opposition.Yellow.Cards = HData$Away.Yellow.Cards
-HData$Opposition.Red.Cards = HData$Away.Red.Cards
-HData$Opposition.Goals.Conceded.Form = HData$Away.Goals.Conceded.Form
-HData$Relative.Goals.Form = ((HData$Team.Goals.Scored.Form - HData$Team.Goals.Conceded.Form) - (HData$Opposition.Goals.Scored.Form - HData$Opposition.Goals.Conceded.Form))
-HData$Team.Odds = HData$B365H
-HData$Draw.Odds = HData$B365D
-HData$Opposition.Odds = HData$B365A
-HData$Team.AH.Odds = HData$Ave.AH.Home.Odds
-HData$Team.Handicap = HData$Asian.Handicap
-HData$Opposition.AH.Odds = HData$Ave.AH.Away.Odds
-HData$Team_Tier = HData$Home_Tier
-HData$Opposition_Tier = HData$Away_Tier
-HData$Team.Goal.Diff = HData$Full.Time.Home.Goals - HData$Full.Time.Away.Goals
-HData$Home.Away = rep("Home",nrow(HData))
-
-#-now create the data for the away matches
-AData <- DATA[DATA$AwayTeam == Teams[i,1],]
-#-Create the variables that we need - first for all the Away matches
-AData$Team.Favourite = AData$Away.Favourite
-AData$Opposition = AData$HomeTeam
-AData$Team.Form = AData$Away.form
-AData$Opposition.Form = AData$Home.Form
-AData$Team.Shots.on.Target.Form = AData$Away.Shots.on.Target.Form
-AData$Opposition.Shots.on.Target.Form = AData$Home.Shots.on.Target.Form
-AData$Team.Shots.Conceded.Form = AData$Away.Shots.Conceded.Form
-AData$Opposition.Shots.Conceded.Form = AData$Home.Shots.Conceded.Form
-AData$Team.Goals.Scored.Form = AData$Away.Goals.Scored.Form
-AData$Opposition.Goals.Scored.Form = AData$Home.Goals.Scored.Form
-AData$Team.Goals.Conceded.Form = AData$Away.Goals.Conceded.Form
-AData$Opposition.Goals.Conceded.Form = AData$Home.Goals.Conceded.Form
-AData$Team.Corners.Form = AData$Away.Corners.Form
-AData$Team.Fouls.Form = AData$Away.Team.Fouls.Form
-AData$Team.Yellow.Cards = AData$Away.Yellow.Cards
-AData$Team.Red.Cards = AData$Away.Red.Cards
-AData$Opposition.Corners.Form = AData$Home.Corners.Form
-AData$Opposition.Fouls.Form = AData$Home.Team.Fouls.Form
-AData$Opposition.Yellow.Cards = AData$Home.Yellow.Cards
-AData$Opposition.Red.Cards = AData$Home.Red.Cards
-AData$Opposition.Goals.Conceded.Form = AData$Home.Goals.Conceded.Form
-AData$Relative.Goals.Form = ((AData$Team.Goals.Scored.Form - AData$Team.Goals.Conceded.Form) - (AData$Opposition.Goals.Scored.Form - AData$Opposition.Goals.Conceded.Form))
-AData$Team.Odds = AData$B365A
-AData$Draw.Odds = AData$B365D
-AData$Opposition.Odds = AData$B365H
-AData$Team.AH.Odds = AData$Ave.AH.Away.Odds
-AData$Team.Handicap = AData$Asian.Handicap*-1
-AData$Opposition.AH.Odds = AData$Ave.AH.Home.Odds
-AData$Team_Tier = AData$Away_Tier
-AData$Opposition_Tier = AData$Home_Tier
-AData$Team.Goal.Diff = AData$Full.Time.Away.Goals - AData$Full.Time.Home.Goals
-AData$Home.Away = rep("Away",nrow(AData))
-
-#-brill now we're cooking
-#-so now that we have those two datasets let's append them and add them to our major dataframe
-ComboData <- HData
-ComboData <- rbind(ComboData,AData)
-Team <- rep(Teams[i,1],nrow(ComboData))
-ComboData <- cbind(ComboData,Team)
-
-if(i == 1){
-TeamData <- ComboData
-}else{
-TeamData <- rbind(TeamData,ComboData)
-}
-
-TeamData <- as.data.frame(TeamData)
-}
-
-#- ok so we have a tasty little treat here where we have to order the teamdata dataframe by teams seasons and gameweeks and then
-#- we have to create a lookup table which calculates our basic strength, join that to our original
-#- then create a win streak count and subsequent probability variable
-#- also for shits and giggles as this is just the data manipulation stage I'm going to play with data.table
-PreppedData <- data.table(TeamData)
-PreppedData <- PreppedData[order(Team,Season,Game.Week.Index)]
-#-create the points the team scored
-PreppedData$Team.Points <- ifelse(PreppedData$Team.Goal.Diff > 0, 3, ifelse(PreppedData$Team.Goal.Diff < 0, 0, 1))
-#-creating the lookup table from the average over the first 6 games
-AveStr <- PreppedData[Game.Week.Index <= 6,.(Initial.Strength = ave(Team.Points)), by =.(Season, Team)]
-OppStr <- PreppedData[Game.Week.Index <= 6,.(Opp.Initial.Strength = ave(Team.Points)), by =.(Season, Opposition)]
-#- thar be duplicates ahead, remove 'em
-#-remove the key
-setkey(AveStr,NULL)
-AveStr <- unique(AveStr)
-setkey(OppStr,NULL)
-OppStr <- unique(OppStr)
-
-PreppedData <- join(PreppedData, AveStr, by = c("Season", "Team"))
-PreppedData <- join(PreppedData, OppStr, by = c("Season", "Opposition"))
-#-kl
-#- nope it'll never catch on I mean "cool"
-#-ok now I want to add a winning streak variable
-#-for this one I'm going to have to cheat just a little bit as we need the average streak per season what we can then do is
-#- look at the average ratio of first 6 games average to season and see if there is any consistency there if so we can use the first 6
-#- as a proxy for the season that we are going to be predicting
-#-so for this bit of code we set up an empty data table and then set it to the filtered PreppedData for each team season combo
-#- Then we add another column which will count a 1 or 0 if the team has not lost or has lost
-#- subsequently we create a second column which adds up these 1's and 0's into a streak
-
-WinStrC <- data.table()
-WinStreakComplete <- data.table()
-for (e in 1:nrow(AveStr)){
-WinStrC <- PreppedData[Team == AveStr[[e,2]] & Season == AveStr[[e,1]],]
-		for (r in 1:nrow(WinStrC)){
-		WinStrC$Win.ID <- ifelse(WinStrC$Team.Goal.Diff >= 0, 1, 0)
-		if(r == 1){
-			WinStrC$Win.Count[r] <- ifelse(WinStrC$Win.ID[r] >0, 1,0)
-			}else{
-			WinStrC$Win.Count[r] <- ifelse(WinStrC$Win.ID[r] >0, WinStrC$Win.Count[[r-1]]+1,0)
-			}
-		}
-		if(r == 1){
-		WinStreakComplete <- WinStrC
-		}else{
-			WinStreakComplete <- rbind(WinStreakComplete,WinStrC)
-			}
-
-}
-ncol(WinStreakComplete)
-PreppedData <- WinStreakComplete
-rm(WinStreakComplete)
-#-now figure out what the average streak is for each team across the model time period
-AveStreak <- PreppedData[,.(Ave.Streak = ave(Win.Count)), by =.(Team)]
-AveStreak <- unique(AveStreak)
-PreppedData <- join(PreppedData, AveStreak, by = c("Team"))
-
-#-finally ready to add on what the chances are of increasing the non lose streak
-for(u in 1:nrow(PreppedData)){
-	if(u == 1){
-	PreppedData$Streak.Probability[[1]] <- dpois(PreppedData$Win.Count[[1]],PreppedData$Ave.Streak[[1]])
-	}else{
-	PreppedData$Streak.Probability[[u]] <- dpois(PreppedData$Win.Count[[u-1]]+1,PreppedData$Ave.Streak[[u]])
-	}
-}
-
-#- save it as a csv so we can have a quick look in excel if we need to
-#- we shouldn't need to
-write.csv(PreppedData, "Europe Data For Modelling 2015 2016.csv")
-
 
 #----------------------- Data Prep Over let's play with Models ---------------------------#
 
@@ -195,16 +5,20 @@ write.csv(PreppedData, "Europe Data For Modelling 2015 2016.csv")
 setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
  #-load in the data
 train <- read.csv ("Europe Data For Modelling 2015 2016.csv", header=TRUE)
-#-you have to change the storage of tain$team to character so that the different levels plays nicely with the factors in Teams
+#-you have to change the storage of tain$team to character so that the different
+# levels plays nicely with the factors in Teams
 train$Team <- as.character(train$Team)
 
-#- Define two data frames (maybe they should be tables) which will store our results within loops and at the end of our loops
+# Define two data frames (maybe they should be tables) which will store our
+# results within loops and at the end of our loops
 PredResults <- data.frame()
 StatResults <- data.frame()
 GWRange <- 38 #- 38 games in a season son
 
-#- some of the teams in the season that we are modelling won't have played in the division previously and as such will confuse our model, when
-#- they are called, noting for it but to call on the spirit of Stalin and have them scrubbed from history
+# some of the teams in the season that we are modelling won't have played in
+# the division previously and as such will confuse our model, when
+# they are called, noting for it but to call on the spirit of Stalin and have
+# them scrubbed from history
 Teams <- Teams[Teams[,1] != "Angers",]
 Teams <- as.data.frame(Teams)
 Teams <- Teams[Teams[,1] != "Ajaccio GFCO",]
@@ -216,35 +30,54 @@ Teams <- as.data.frame(Teams)
 Teams <- Teams[Teams[,1] != "Guingamp",]
 Teams <- as.data.frame(Teams)
 
-#- ok so this is the meat of the action where for every team we...
-for(j in 1: 1){
+# ok so this is the meat of the action where for every team we...
+for(j in 1: length(Teams)){
+			# j=1 # Testing single run
 		 #- and for every gameweek
-		 for (i in 8:25){
-			#-ModTrain is a subset of our working dataset that we split by each team and for weeks past 6
+		 for (i in 8:38){
+			# i=8 # Testing for single run
+			# ModTrain is a subset of our working dataset that we split by each team
+			# and for weeks past 6
 			ModTrain1 <- train[train$Game.Week.Index > 6 & train$Season != "2015 2016",]
-			ModTrain2 <- train[train$Game.Week.Index > 6 & train$Game.Week.Index < i & train$Season == "2015 2016",]
+			ModTrain2 <- train[train$Game.Week.Index > 6 & train$Game.Week.Index < i &
+			train$Season == "2015 2016",]
 			ModTrain <- rbind(ModTrain1,ModTrain2)
 
 			#-we'll create a couple of extra variables to make things a little easier for the model here each time
-			ModTrain$High.Team.Form <- ifelse(ModTrain$Team.Form > quantile(ModTrain$Team.Form)[4], ModTrain$Team.Form, 0)
-			ModTrain$Low.Team.Form <- ifelse(ModTrain$Team.Form < quantile(ModTrain$Team.Form)[2], ModTrain$Team.Form, 0)
-			ModTrain$High.Opposition.Form <- ifelse(ModTrain$Opposition.Form > quantile(ModTrain$Opposition.Form)[4], ModTrain$Opposition.Form, 0)
-			ModTrain$Low.Opposition.Form <- ifelse(ModTrain$Opposition.Form < quantile(ModTrain$Opposition.Form)[2], ModTrain$Opposition.Form, 0)
-			ModTrain$Expected.Team.Goals <- (ModTrain$Team.Shots.on.Target.Form + ModTrain$Opposition.Shots.Conceded.Form)
-			ModTrain$Expected.Opposition.Goals <- (ModTrain$Opposition.Shots.on.Target.Form + ModTrain$Team.Shots.Conceded.Form)
+			ModTrain$High.Team.Form <- ifelse(ModTrain$Team.Form >
+				quantile(ModTrain$Team.Form)[4], ModTrain$Team.Form, 0)
+			ModTrain$Low.Team.Form <- ifelse(ModTrain$Team.Form <
+				quantile(ModTrain$Team.Form)[2], ModTrain$Team.Form, 0)
+			ModTrain$High.Opposition.Form <- ifelse(ModTrain$Opposition.Form >
+				quantile(ModTrain$Opposition.Form)[4], ModTrain$Opposition.Form, 0)
+			ModTrain$Low.Opposition.Form <- ifelse(ModTrain$Opposition.Form <
+				quantile(ModTrain$Opposition.Form)[2], ModTrain$Opposition.Form, 0)
+			ModTrain$Expected.Team.Goals <- (ModTrain$Team.Shots.on.Target.Form
+				 + ModTrain$Opposition.Shots.Conceded.Form)
+			ModTrain$Expected.Opposition.Goals <-
+			(ModTrain$Opposition.Shots.on.Target.Form + ModTrain$Team.Shots.Conceded.Form)
 			ModTrain$Relative.Form <- ModTrain$Team.Form - ModTrain$Opposition.Form
-			ModTrain$Expected.Shots <- (ModTrain$Team.Shots.on.Target.Form + ModTrain$Opposition.Shots.Conceded.Form) - (ModTrain$Team.Shots.Conceded.Form + ModTrain$Opposition.Shots.on.Target.Form)
+			ModTrain$Expected.Shots <- (ModTrain$Team.Shots.on.Target.Form +
+				ModTrain$Opposition.Shots.Conceded.Form) -
+				(ModTrain$Team.Shots.Conceded.Form + ModTrain$Opposition.Shots.on.Target.Form)
 			ModTrain$Relative.Odds <- ModTrain$Opposition.Odds - ModTrain$Team.Odds
-			ModTrain$Team_Tier <- ifelse(ModTrain$Team_Tier == 1, "Tier 1", ifelse(ModTrain$Team_Tier == 2, "Tier 2",ifelse(ModTrain$Team_Tier == 3, "Tier 3", "Tier 4" ) ))
-			ModTrain$Opposition_Tier <- ifelse(ModTrain$Opposition_Tier == 1, "Tier 1", ifelse(ModTrain$Opposition_Tier == 2, "Tier 2",ifelse(ModTrain$Opposition_Tier == 3, "Tier 3", "Tier 4" ) ))
-			ModTrain$Team_Description <- paste(ModTrain$Team_Tier,ModTrain$Opposition_Tier,ModTrain$Home.Away)
+			ModTrain$Team_Tier <- ifelse(ModTrain$Team_Tier == 1, "Tier 1",
+			ifelse(ModTrain$Team_Tier == 2, "Tier 2",
+			ifelse(ModTrain$Team_Tier == 3, "Tier 3", "Tier 4" ) ))
+			ModTrain$Opposition_Tier <- ifelse(ModTrain$Opposition_Tier == 1, "Tier 1",
+			ifelse(ModTrain$Opposition_Tier == 2, "Tier 2",
+			ifelse(ModTrain$Opposition_Tier == 3, "Tier 3", "Tier 4" ) ))
+			ModTrain$Team_Description <- paste(ModTrain$Team_Tier,ModTrain$Opposition_Tier,
+				ModTrain$Home.Away)
 
 			for (q in 1 : nrow(ModTrain)){
 			ModTrain$Expected.Goal.Difference[q] <- ((ave(rpois(50,ModTrain$Expected.Team.Goals[[q]]))[1] + ModTrain$Team.Handicap[[q]]) - (ave(rpois(50,ModTrain$Expected.Opposition.Goals[[q]]))[1]))
 			}
-			#- here we play a little with the dependent, kind of depends on the model we're running,in this case we want a trinomial classification
-			#ModTrain$Team.Goal.Diff <- ifelse(ModTrain$Team.Goal.Diff > 0, 2, ifelse(ModTrain$Team.Goal.Diff < 0, 0, 1))
-			#ModTrain$Team.Goal.Diff <- as.factor(ModTrain$Team.Goal.Diff)
+			# here we play a little with the dependent, kind of depends on the model
+			# we're running,in this case we want a trinomial classification
+			# ModTrain$Team.Goal.Diff <- ifelse(ModTrain$Team.Goal.Diff > 0, 2,
+			# ifelse(ModTrain$Team.Goal.Diff < 0, 0, 1))
+			# ModTrain$Team.Goal.Diff <- as.factor(ModTrain$Team.Goal.Diff)
 
 
 			#- we have to feed it the input dataset of all the variables used, so define the formula below
@@ -281,7 +114,7 @@ for(j in 1: 1){
 
             Agg_Results <- data.frame()
 
-            #------------------------------ Gradient Boosting ------------------------------# 6 minutes
+            #------------------------------ Random Forest ------------------------------# 6 minutes
             ## Tuning in inner resampling loop
 			#set tunable parameters
 			#grid search to find hyperparameters
@@ -294,7 +127,7 @@ for(j in 1: 1){
 			makeIntegerParam("mtry", lower = 3, upper = 10),
 			makeIntegerParam("nodesize", lower = 10, upper = 50)
 			)
-
+			# We use Bayesian optimisation of hyperparameters because we're not animals
 			rancontrol <- makeTuneControlMBO()
 			#set 3 fold cross validation
 set_cv <- makeResampleDesc("CV",iters = 3)
