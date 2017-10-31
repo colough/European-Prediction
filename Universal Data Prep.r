@@ -8,7 +8,7 @@ require(data.table)
 setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Data/Pre Prepped")
 Input_Files <- list.files()
 
-for (p in 3:3){
+for (p in 1:length(Input_Files)){
 DATA <- read.csv(Input_Files[p], header = TRUE)
 
 # so what we need to do is create a unique list of the teams involved in the
