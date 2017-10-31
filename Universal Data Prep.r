@@ -5,21 +5,19 @@ require(plyr)
 require(data.table)
 
 # which project folder we want to work in
-setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Data/Pre Prepped")
-Input_Files <- list.files()
-# Read in the data files and merge to create one df
-Eng_df <- read.csv()
-Fra_df <- read.csv()
-Ger_df <- read.csv()
-Spa_df <- read.csv()
+setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Input Data")
 
+# Read in the data files and merge to create one European df
+Eng_df <- read.csv("England Prepped Input.csv", header = T)
+Fra_df <- read.csv("France Prepped Input.csv", header = T)
+Ger_df <- read.csv("Germany Prepped Input.csv", header = T)
+Spa_df <- read.csv("Spain Prepped Input.csv", header = T)
 
-for (p in 1:length(Input_Files)){
-DATA <- read.csv(Input_Files[p], header = TRUE)
+df <- rbindlist(list(Eng_df,Fra_df,Ger_df,Spa_df), use.names=T)
 
 # so what we need to do is create a unique list of the teams involved in the
 # latest season
-Teams <- DATA[,5]
+Teams <- df$HomeTeam
 Teams <- unique(Teams)
 Teams <- as.data.frame(Teams)
 TeamData <- data.frame()
@@ -31,8 +29,8 @@ TeamData <- data.frame()
 # below we split it by home and away and then match up by team
 
 for(i in 1:nrow(Teams)){
-HData <- DATA[DATA$HomeTeam == Teams[i,1],]
-#-Create the variables that we need - first for all the home matches
+HData <- df[df$HomeTeam == Teams[i,1],]
+# Create the variables that we need - first for all the home matches
 HData$Team_Favourite = HData$Home_Favourite
 HData$Opposition = HData$AwayTeam
 HData$Team_Form = HData$Home_Form
@@ -68,10 +66,23 @@ HData$Team_Tier = HData$Home_Tier
 HData$Opposition_Tier = HData$Away_Tier
 HData$Team_Goal_Diff = HData$Full_Time_Home_Goals - HData$Full_Time_Away_Goals
 HData$Home_Away = rep("Home",nrow(HData))
-
+HData$Poisson_Form_Team <- HData$Poisson_Home_Win
+HData$Poisson_Form_Draw <- HData$Poisson_Draw
+HData$Poisson_Form_Opposition <- HData$Poisson_Away_Win
+HData$Poisson_Result <- ifelse(HData$Poisson_Form_Team >
+                                HData$Poisson_Form_Opposition,1,
+                                ifelse(HData$Poisson_Form_Team <
+                                HData$Poisson_Form_Opposition,-1,0))
+HData$Regress_Mean_Team <- HData$Regress_Home
+HData$Regress_Mean_Draw <- HData$Regress_Draw
+HData$Regress_Mean_Opposition <- HData$Regress_Away
+HData$Regress_Result <- ifelse(HData$Regress_Mean_Team >
+                                HData$Regress_Mean_Opposition,1,
+                                ifelse(HData$Regress_Mean_Team <
+                                HData$Regress_Mean_Opposition,-1,0))
 
 #-now create the data for the away matches
-AData <- DATA[DATA$AwayTeam == Teams[i,1],]
+AData <- df[df$AwayTeam == Teams[i,1],]
 #-Create the variables that we need - for all the Away matches
 AData$Team_Favourite = AData$Away_Favourite
 AData$Opposition = AData$HomeTeam
@@ -108,6 +119,20 @@ AData$Team_Tier = AData$Away_Tier
 AData$Opposition_Tier = AData$Home_Tier
 AData$Team_Goal_Diff = AData$Full_Time_Away_Goals - AData$Full_Time_Home_Goals
 AData$Home_Away = rep("Away",nrow(AData))
+AData$Poisson_Form_Team <- AData$Poisson_Away_Win
+AData$Poisson_Form_Draw <- AData$Poisson_Draw
+AData$Poisson_Form_Opposition <- AData$Poisson_Home_Win
+AData$Poisson_Result <- ifelse(AData$Poisson_Form_Team >
+                                AData$Poisson_Form_Opposition,1,
+                                ifelse(AData$Poisson_Form_Team <
+                                AData$Poisson_Form_Opposition,-1,0))
+AData$Regress_Mean_Team <- HData$Regress_Away
+AData$Regress_Mean_Draw <- HData$Regress_Draw
+AData$Regress_Mean_Opposition <- AData$Regress_Away
+AData$Regress_Result <- ifelse(AData$Regress_Mean_Team >
+                                AData$Regress_Mean_Opposition,1,
+                                ifelse(AData$Regress_Mean_Team <
+                                AData$Regress_Mean_Opposition,-1,0))
 
 # brill now we're cooking
 # so now that we have those two datasets let's append them and add them to
@@ -121,86 +146,8 @@ TeamData <- as.data.frame(TeamData)
 }
 
 
-# ok so we have a tasty little treat here where we have to order the teamdata
-# dataframe by teams seasons and gameweeks and then
-# we have to create a lookup table which calculates our basic strength, join
-# that to our original then create a win streak count and subsequent probability
-# variable, also for shits and giggles as this is just the data manipulation
-# stage I'm going to play with data.table
-PreppedData <- data.table(TeamData)
-PreppedData <- PreppedData[order(Team,Season,Game_Week_Index)]
-#-create the points the team scored
-PreppedData$Team_Points <- ifelse(PreppedData$Team_Goal_Diff > 0, 3,
-                            ifelse(PreppedData$Team_Goal_Diff < 0, 0, 1))
-#-creating the lookup table from the average over the first 6 games
-AveStr <- PreppedData[Game_Week_Index <= 6,
-                        .(Initial_Strength = ave(Team_Points)),
-                                                by =.(Season, Team)]
-OppStr <- PreppedData[Game_Week_Index <= 6,
-                        .(Opp_Initial_Strength = ave(Team_Points)),
-                                                by =.(Season, Opposition)]
-#- thar be duplicates ahead, remove 'em
-#-remove the key
-setkey(AveStr,NULL)
-AveStr <- unique(AveStr)
-setkey(OppStr,NULL)
-OppStr <- unique(OppStr)
-
-PreppedData <- join(PreppedData, AveStr, by = c("Season", "Team"))
-PreppedData <- join(PreppedData, OppStr, by = c("Season", "Opposition"))
 # kl
 # nope it'll never catch on I mean "cool"
-# ok now I want to add a winning streak variable
-# for this one I'm going to have to cheat just a little bit as we need the
-# average streak per season what we can then do is
-# look at the average ratio of first 6 games average to season and see if there
-# is any consistency there if so we can use the first 6
-# as a proxy for the season that we are going to be predicting
-# so for this bit of code we set up an empty data table and then set it to the
-# filtered PreppedData for each team season combo
-# Then we add another column which will count a 1 or 0 if the team has not lost
-# or has lost subsequently we create a second column which adds up these 1's and
-# 0's into a streak
 
-WinStrC <- data.table()
-WinStreakComplete <- data.table()
-for (e in 1:nrow(AveStr)){
-WinStrC <- PreppedData[Team == AveStr[[e,2]] & Season == AveStr[[e,1]],]
-		for (r in 1:nrow(WinStrC)){
-		WinStrC$Win_ID <- ifelse(WinStrC$Team_Goal_Diff >= 0, 1, 0)
-		if(r == 1){
-			WinStrC$Win_Count[r] <- ifelse(WinStrC$Win_ID[r] >0, 1,0)
-			}else{
-			WinStrC$Win_Count[r] <- ifelse(WinStrC$Win_ID[r] >0,
-                                        WinStrC$Win_Count[[r-1]]+1,0)
-			}
-		}
-		if(r == 1){
-		WinStreakComplete <- WinStrC
-		}else{
-			WinStreakComplete <- rbind(WinStreakComplete,WinStrC)
-			}
-
-}
-ncol(WinStreakComplete)
-PreppedData <- WinStreakComplete
-rm(WinStreakComplete)
-# now figure out what the average streak is for each team across the
-# model time period
-AveStreak <- PreppedData[,.(Ave_Streak = ave(Win_Count)), by =.(Team)]
-AveStreak <- unique(AveStreak)
-PreppedData <- join(PreppedData, AveStreak, by = c("Team"))
-
-#-finally ready to add on what the chances are of increasing the non lose streak
-for(u in 1:nrow(PreppedData)){
-	if(u == 1){
-	PreppedData$Streak_Probability[[1]] <- dpois(PreppedData$Win_Count[[1]],
-                                                PreppedData$Ave_Streak[[1]])
-	}else{
-	PreppedData$Streak_Probability[[u]] <- dpois(PreppedData$Win_Count[[u-1]]+1,
-                                                PreppedData$Ave_Streak[[u]])
-	      }
-    }
-
-write.csv(PreppedData, paste0("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Data/Prepped/Prepped ",Input_Files[p]), row.names=F)
+write.csv(TeamData, "C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data/Europe Prepped Output"), row.names=F)
 }
