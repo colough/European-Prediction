@@ -4,9 +4,15 @@
 require(plyr)
 require(data.table)
 
-#-which project folder we want to work in
+# which project folder we want to work in
 setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Data/Pre Prepped")
 Input_Files <- list.files()
+# Read in the data files and merge to create one df
+Eng_df <- read.csv()
+Fra_df <- read.csv()
+Ger_df <- read.csv()
+Spa_df <- read.csv()
+
 
 for (p in 1:length(Input_Files)){
 DATA <- read.csv(Input_Files[p], header = TRUE)
