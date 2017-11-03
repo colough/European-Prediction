@@ -49,6 +49,8 @@ df <- df[Div %in% League]
 # Teams in current season
 Teams <- as.data.frame(unique(df[Season == max(df$Season),HomeTeam]))
 # Can only take teams whose first season isn't the one currently predicting:
+# So create unique list of Seasons and teams and then look at all teams with
+# greater than one row
 
 
 # TODO create empty container for ____
