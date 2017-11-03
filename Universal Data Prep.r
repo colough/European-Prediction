@@ -14,11 +14,11 @@ Ger_df <- read.csv("Germany Prepped Input.csv", header = T)
 Spa_df <- read.csv("Spain Prepped Input.csv", header = T)
 
 df <- rbindlist(list(Eng_df,Fra_df,Ger_df,Spa_df), use.names=T)
-
+df <- as.data.frame(df)
 # so what we need to do is create a unique list of the teams involved in the
 # latest season
 Teams <- df$HomeTeam
-Teams <- unique(Teams)
+Teams <- unique(as.character(Teams))
 Teams <- as.data.frame(Teams)
 TeamData <- data.frame()
 
@@ -66,16 +66,16 @@ HData$Team_Tier = HData$Home_Tier
 HData$Opposition_Tier = HData$Away_Tier
 HData$Team_Goal_Diff = HData$Full_Time_Home_Goals - HData$Full_Time_Away_Goals
 HData$Home_Away = rep("Home",nrow(HData))
-HData$Poisson_Form_Team <- HData$Poisson_Home_Win
-HData$Poisson_Form_Draw <- HData$Poisson_Draw
-HData$Poisson_Form_Opposition <- HData$Poisson_Away_Win
+HData$Poisson_Form_Team <- as.numeric(HData$Poisson_Home_Win)
+HData$Poisson_Form_Draw <- as.numeric(HData$Poisson_Draw)
+HData$Poisson_Form_Opposition <- as.numeric(HData$Poisson_Away_Win)
 HData$Poisson_Result <- ifelse(HData$Poisson_Form_Team >
                                 HData$Poisson_Form_Opposition,1,
                                 ifelse(HData$Poisson_Form_Team <
                                 HData$Poisson_Form_Opposition,-1,0))
-HData$Regress_Mean_Team <- HData$Regress_Home
-HData$Regress_Mean_Draw <- HData$Regress_Draw
-HData$Regress_Mean_Opposition <- HData$Regress_Away
+HData$Regress_Mean_Team <- as.numeric(HData$Regress_Home)
+HData$Regress_Mean_Draw <- as.numeric(HData$Regress_Draw)
+HData$Regress_Mean_Opposition <- as.numeric(HData$Regress_Away)
 HData$Regress_Result <- ifelse(HData$Regress_Mean_Team >
                                 HData$Regress_Mean_Opposition,1,
                                 ifelse(HData$Regress_Mean_Team <
@@ -119,16 +119,16 @@ AData$Team_Tier = AData$Away_Tier
 AData$Opposition_Tier = AData$Home_Tier
 AData$Team_Goal_Diff = AData$Full_Time_Away_Goals - AData$Full_Time_Home_Goals
 AData$Home_Away = rep("Away",nrow(AData))
-AData$Poisson_Form_Team <- AData$Poisson_Away_Win
-AData$Poisson_Form_Draw <- AData$Poisson_Draw
-AData$Poisson_Form_Opposition <- AData$Poisson_Home_Win
+AData$Poisson_Form_Team <- as.numeric(AData$Poisson_Away_Win)
+AData$Poisson_Form_Draw <- as.numeric(AData$Poisson_Draw)
+AData$Poisson_Form_Opposition <- as.numeric(AData$Poisson_Home_Win)
 AData$Poisson_Result <- ifelse(AData$Poisson_Form_Team >
                                 AData$Poisson_Form_Opposition,1,
                                 ifelse(AData$Poisson_Form_Team <
                                 AData$Poisson_Form_Opposition,-1,0))
-AData$Regress_Mean_Team <- HData$Regress_Away
-AData$Regress_Mean_Draw <- HData$Regress_Draw
-AData$Regress_Mean_Opposition <- AData$Regress_Away
+AData$Regress_Mean_Team <- as.numeric(AData$Regress_Away)
+AData$Regress_Mean_Draw <- as.numeric(AData$Regress_Draw)
+AData$Regress_Mean_Opposition <- as.numeric(AData$Regress_Away)
 AData$Regress_Result <- ifelse(AData$Regress_Mean_Team >
                                 AData$Regress_Mean_Opposition,1,
                                 ifelse(AData$Regress_Mean_Team <
@@ -149,5 +149,4 @@ TeamData <- as.data.frame(TeamData)
 # kl
 # nope it'll never catch on I mean "cool"
 
-write.csv(TeamData, "C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data/Europe Prepped Output"), row.names=F)
-}
+write.csv(TeamData, "C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data/Europe Prepped Output.csv", row.names=F)
