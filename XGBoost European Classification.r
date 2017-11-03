@@ -27,6 +27,10 @@ Season_prediction <- 20152016
 # Take away any leagues you don't want included:
 # Full List: League <- c('D1','E0', 'F1', 'SP1')
 League <- c('E0', 'F1', 'SP1')
+
+# How many games in a season?
+GWRange <- 38 #- 38 games in a season son
+
 ##############################################################################
 #--------------------------------Data Loading--------------------------------#
 ##############################################################################
@@ -47,32 +51,26 @@ df <- df[Div %in% League]
 
 # TODO Apply Team filtering
 # Teams in current season
-Teams <- as.data.frame(unique(df[Season == max(df$Season),HomeTeam]))
+Teams <- unique(df[Season == max(df$Season),HomeTeam])
 # Can only take teams whose first season isn't the one currently predicting:
 # So create unique list of Seasons and teams and then look at all teams with
 # greater than one row
+df$HomeTeam <- as.character(df$HomeTeam)
+Temp_Teams <- as.data.frame(unique(df[HomeTeam %in% Teams,c("HomeTeam",
+													"Season")]))
+Temp_Teams <- as.data.table(Temp_Teams)
+Team_Count <- Temp_Teams[,.N, by=HomeTeam]
+Team_Count <- Team_Count[N > 1]
+Teams <- Team_Count[,c("HomeTeam")]
+df <- df[df$HomeTeam %in% Teams$HomeTeam,]
 
-
-# TODO create empty container for ____
-TeamData <- data.frame
-
+# Create empty containers to hold our results later:
+PredResults <- data.frame()
+StatResults <- data.frame()
 
 ##############################################################################
 #-------------------------------Model Building-------------------------------#
 ##############################################################################
-#- where we at
-setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
-#-load in the data
-train <- read.csv ("Europe Data For Modelling 2015 2016.csv", header=TRUE)
-#-you have to change the storage of tain$team to character so that the different
-# levels plays nicely with the factors in Teams
-train$Team <- as.character(train$Team)
-
-# Define two data frames (maybe they should be tables) which will store our results within loops and at the end of our loops
-PredResults <- data.frame()
-StatResults <- data.frame()
-GWRange <- 38 #- 38 games in a season son
-
 
 #- ok so this is the meat of the action where for every team we...
 for(j in 1: 2){
