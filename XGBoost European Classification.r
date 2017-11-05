@@ -89,68 +89,57 @@ i=8
 			ModTrain$Team_Goal_Diff <- ifelse(ModTrain$Team_Goal_Diff > 0, 2,
 																	ifelse(ModTrain$Team_Goal_Diff < 0, 0, 1))
 			ModTrain$Team_Goal_Diff <- as.factor(ModTrain$Team_Goal_Diff)
-
+			ModTrain <- as.data.frame(ModTrain)
 			# So for neural nets we had to have all data numeric and standardised
 			# For simplicity sake when replicating code for other methods we adopt
 			# that as a standard, so below we define all the independent variables to
 			# be used in the model and we transform them
-			variables <- c("Season","Calendar_Season","Team_Tier","Opposition_Tier",
-			""
-		)
+			variables <- c('Season','Calendar_Season','Match_Tier','Home_Away',
+			'Poisson_Result','Regress_Result','Relative_Goals_Form',
+			'Team_Handicap','Team_Odds', 'Opposition_Odds')
 			TDat1 <- ModTrain[,variables]
-
 			TDat2 <- dummyVars("~.",data=TDat1)
 			TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
 			TrainDatnames <- colnames(TrainDat)
-			#- now we need to normalize the training data
-			#TrainDat <- normalizeData(TrainDat, type="0_1")
-			#colnames(TrainDat) <- TrainDatnames
 
-			# same for the Dependent variable if
-			Tester <- data.frame(ModTrain$Team.Goal.Diff)
-			#TDat2 <- dummyVars("~.",data=Tester)
-			#TestDat <- data.frame(predict(TDat2, newdata = Tester))
-			#- now we need to normalize the training data
-			#TestDatnames <- colnames(TestDat)
-			#TestDat <- normalizeData(TestDat, type="0_1")
-			#colnames(TestDat) <- TestDatnames
+			# same for the Dependent variable
+			Dependent <- data.frame(ModTrain$Team_Goal_Diff)
+      # for this package it wants a single column with the the three groups
+			# to classify
+      TrainDat <- cbind(TrainDat, Dependent)
 
-            # for this package it wants a single column with the the three groups to classify
-            # so join this to TrainDat and use instead of TestDat
-            TrainDat <- cbind(TrainDat, Tester)
-
-            # ok so to start modelling we have to declare a so called 'task', with the
-            # dependent and independent variables called out
+      # ok so to start modelling we have to declare a so called 'task', with the
+      # dependent and independent variables called out
 			TrainDat <- as.data.frame(TrainDat)
-            trainTask <- makeRegrTask(data = TrainDat,target = "ModTrain.Team.Goal.Diff")
+      trainTask <- makeClassifTask(data = TrainDat,
+											target = "ModTrain.Team_Goal_Diff")
 
-            Agg_Results <- data.frame()
+      Agg_Results <- data.frame()
 
-            #------------------------------ Gradient Boosting ------------------------------# 6 minutes
-            ## Tuning in inner resampling loop
+        #-------- Gradient Boosting --------#
+        ## Tuning in inner resampling loop
+          parallelStartSocket(3)
 
-	            parallelStartSocket(3)
+					ptm <- proc.time()
+				  ps = makeParamSet(
+					makeIntegerParam("nrounds", lower = 1, upper = 30),
+					makeIntegerParam("max_depth", lower = 3, upper = 20),
+					makeNumericParam("lambda", lower=0.55, upper=0.60),
+					makeNumericParam("eta", lower = 0.001, upper = 0.5),
+					makeNumericParam("subsample", lower = 0.1, upper = 0.8),
+					makeNumericParam("min_child_weight", lower = 1, upper = 5),
+					makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8),
+					makeDiscreteParam(id = "objective", values = c("multi:softprob"), tunable = F)
+				  )
+				  ctrl = makeTuneControlMBO()
+				  inner = makeResampleDesc("Subsample", iters = 2)
+				  lrn = makeTuneWrapper("classif.xgboost", resampling = inner, par.set = ps, control = ctrl, show.info = FALSE)
 
-	            ptm <- proc.time()
-	            ps = makeParamSet(
-	              makeIntegerParam("nrounds", lower = 1, upper = 30),
-	              makeIntegerParam("max_depth", lower = 3, upper = 20),
-	              makeNumericParam("lambda", lower=0.55, upper=0.60),
-	              makeNumericParam("eta", lower = 0.001, upper = 0.5),
-	              makeNumericParam("subsample", lower = 0.1, upper = 0.8),
-	              makeNumericParam("min_child_weight", lower = 1, upper = 5),
-				  makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8)
-	              #makeDiscreteParam(id = "objective", values = c("reg:linear"), tunable = F)
-	            )
-	            ctrl = makeTuneControlMBO()
-	            inner = makeResampleDesc("Subsample", iters = 2)
-	            lrn = makeTuneWrapper("regr.xgboost", resampling = inner, par.set = ps, control = ctrl, show.info = FALSE)
-
-	            ## Outer resampling loop
-	            outer = makeResampleDesc("CV", iters = 3)
-	            r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult, show.info = FALSE)
-	            parallelStop()
-	            proc.time()-ptm
+				  ## Outer resampling loop
+				  outer = makeResampleDesc("CV", iters = 3)
+				  r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult, show.info = FALSE)
+				  parallelStop()
+				  proc.time()-ptm
 
 				## pick out the best performing model type (not normally recommended)
 				# this is a little messy but we summarize the optimal fits
