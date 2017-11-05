@@ -5,7 +5,7 @@ require(plyr)
 require(data.table)
 
 # which project folder we want to work in
-setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Input Data")
+setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Input Data")
 
 # Read in the data files and merge to create one European df
 Eng_df <- read.csv("England Prepped Input.csv", header = T)
@@ -145,8 +145,15 @@ TeamData <- rbindlist(list(TeamData,ComboData))
 TeamData <- as.data.frame(TeamData)
 }
 
+# like every good demo, there's "one more thing":
+TeamData$Match_Tier <- paste(TeamData$Home_Team_Tier, TeamData$Away_Team_Tier,
+                              sep="-")
+# And even a bonus encore
+TeamData <- TeamData[order(TeamData$Div,TeamData$Season,
+                          TeamData$Game_Week_Index),]
+
 
 # kl
 # nope it'll never catch on I mean "cool"
 
-write.csv(TeamData, "C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data/Europe Prepped Output.csv", row.names=F)
+write.csv(TeamData, "C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data/Europe Prepped Output.csv", row.names=F)

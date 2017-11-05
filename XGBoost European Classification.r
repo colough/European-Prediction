@@ -36,7 +36,8 @@ GWRange <- 38 #- 38 games in a season son
 ##############################################################################
 
 # which project folder we want to work in
-setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
 
@@ -50,7 +51,7 @@ df <- df[Season <= Season_prediction,]
 df <- df[Div %in% League]
 
 # TODO Apply Team filtering
-# Teams in current season
+# Only want to build models for teams who are in current season
 Teams <- unique(df[Season == max(df$Season),HomeTeam])
 # Can only take teams whose first season isn't the one currently predicting:
 # So create unique list of Seasons and teams and then look at all teams with
@@ -64,6 +65,8 @@ Team_Count <- Team_Count[N > 1]
 Teams <- Team_Count[,c("HomeTeam")]
 df <- df[df$HomeTeam %in% Teams$HomeTeam,]
 
+# Turn Seasons back into a factor so we can use it in the model
+df$Season <- as.factor(df$Season)
 # Create empty containers to hold our results later:
 PredResults <- data.frame()
 StatResults <- data.frame()
@@ -72,51 +75,38 @@ StatResults <- data.frame()
 #-------------------------------Model Building-------------------------------#
 ##############################################################################
 
-#- ok so this is the meat of the action where for every team we...
-for(j in 1: 2){
+# ok so this is the meat of the action where for every team we...
+# for(j in 1: 2){
 		 #- and for every gameweek
-		 for (i in 8:25){
-			#-ModTrain is a subset of our working dataset that we split by each team and for weeks past 6
-			ModTrain1 <- train[train$Game.Week.Index > 6 & train$Season != "2015 2016",]
-			ModTrain2 <- train[train$Game.Week.Index > 6 & train$Game.Week.Index < i & train$Season == "2015 2016",]
-			ModTrain <- rbind(ModTrain1,ModTrain2)
-
-			#-we'll create a couple of extra variables to make things a little easier for the model here each time
-			ModTrain$High.Team.Form <- ifelse(ModTrain$Team.Form > quantile(ModTrain$Team.Form)[4], ModTrain$Team.Form, 0)
-			ModTrain$Low.Team.Form <- ifelse(ModTrain$Team.Form < quantile(ModTrain$Team.Form)[2], ModTrain$Team.Form, 0)
-			ModTrain$High.Opposition.Form <- ifelse(ModTrain$Opposition.Form > quantile(ModTrain$Opposition.Form)[4], ModTrain$Opposition.Form, 0)
-			ModTrain$Low.Opposition.Form <- ifelse(ModTrain$Opposition.Form < quantile(ModTrain$Opposition.Form)[2], ModTrain$Opposition.Form, 0)
-			ModTrain$Expected.Team.Goals <- (ModTrain$Team.Shots.on.Target.Form + ModTrain$Opposition.Shots.Conceded.Form)
-			ModTrain$Expected.Opposition.Goals <- (ModTrain$Opposition.Shots.on.Target.Form + ModTrain$Team.Shots.Conceded.Form)
+		 for (i in 8:GWRange){
+i=8
+			ModTrain <- df
+			# we'll create a couple of extra variables to make things a little easier
+			# for the model here each time
 			ModTrain$Relative.Form <- ModTrain$Team.Form - ModTrain$Opposition.Form
-			ModTrain$Expected.Shots <- (ModTrain$Team.Shots.on.Target.Form + ModTrain$Opposition.Shots.Conceded.Form) - (ModTrain$Team.Shots.Conceded.Form + ModTrain$Opposition.Shots.on.Target.Form)
 			ModTrain$Relative.Odds <- ModTrain$Opposition.Odds - ModTrain$Team.Odds
-			#ModTrain$Team_Tier <- ifelse(ModTrain$Team_Tier == 1, "Tier 1", ifelse(ModTrain$Team_Tier == 2, "Tier 2",ifelse(ModTrain$Team_Tier == 3, "Tier 3", "Tier 4" ) ))
-			#ModTrain$Opposition_Tier <- ifelse(ModTrain$Opposition_Tier == 1, "Tier 1", ifelse(ModTrain$Opposition_Tier == 2, "Tier 2",ifelse(ModTrain$Opposition_Tier == 3, "Tier 3", "Tier 4" ) ))
+			# As we're doing a classification model we want the dependent to be classes
+			ModTrain$Team_Goal_Diff <- ifelse(ModTrain$Team_Goal_Diff > 0, 2,
+																	ifelse(ModTrain$Team_Goal_Diff < 0, 0, 1))
+			ModTrain$Team_Goal_Diff <- as.factor(ModTrain$Team_Goal_Diff)
 
-			for (q in 1 : nrow(ModTrain)){
-			ModTrain$Expected.Goal.Difference[q] <- ((ave(rpois(50,ModTrain$Expected.Team.Goals[[q]]))[1] + ModTrain$Team.Handicap[[q]]) - (ave(rpois(50,ModTrain$Expected.Opposition.Goals[[q]]))[1]))
-			}
-			#- here we play a little with the dependent, kind of depends on the model we're running,in this case we want a trinomial classification
-			#ModTrain$Team.Goal.Diff <- ifelse(ModTrain$Team.Goal.Diff > 0, 2, ifelse(ModTrain$Team.Goal.Diff < 0, 0, 1))
-			#ModTrain$Team.Goal.Diff <- as.factor(ModTrain$Team.Goal.Diff)
-
-
-			#- we have to feed it the input dataset of all the variables used, so define the formula below
-			variables <- c("Season","Calendar_Season","Team_Tier","Opposition_Tier","Div","Team.Favourite","Expected.Goal.Difference","Team.Form","Opposition.Form","Team.Shots.on.Target.Form",
-			"Opposition.Shots.Conceded.Form","Opposition.Shots.on.Target.Form","Team.Shots.Conceded.Form","Relative.Goals.Form","Home.Away",
-			"Team.Odds","Draw.Odds","Streak.Probability","Asian.Handicap","Opposition.Odds","Relative.Odds","Expected.Shots","Relative.Form")
+			# So for neural nets we had to have all data numeric and standardised
+			# For simplicity sake when replicating code for other methods we adopt
+			# that as a standard, so below we define all the independent variables to
+			# be used in the model and we transform them
+			variables <- c("Season","Calendar_Season","Team_Tier","Opposition_Tier",
+			""
+		)
 			TDat1 <- ModTrain[,variables]
-			#- but on top of that you can't have categorical variables within the X matrix so to speak
-			#- so we use a function to turn our categorical stuff into numeric data
+
 			TDat2 <- dummyVars("~.",data=TDat1)
 			TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
-			#- now we need to normalize the training data
 			TrainDatnames <- colnames(TrainDat)
+			#- now we need to normalize the training data
 			#TrainDat <- normalizeData(TrainDat, type="0_1")
-			colnames(TrainDat) <- TrainDatnames
+			#colnames(TrainDat) <- TrainDatnames
 
-			#- same for Test data
+			# same for the Dependent variable if
 			Tester <- data.frame(ModTrain$Team.Goal.Diff)
 			#TDat2 <- dummyVars("~.",data=Tester)
 			#TestDat <- data.frame(predict(TDat2, newdata = Tester))
