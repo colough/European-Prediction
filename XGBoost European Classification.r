@@ -16,7 +16,6 @@ require(DiceKriging)
 require(parallelMap)
 require(mlrMBO)
 require(devtools)
-require(xgboost)
 
 ##############################################################################
 #-----------------------------Parameter Settings-----------------------------#
@@ -36,8 +35,8 @@ GWRange <- 38 #- 38 games in a season son
 ##############################################################################
 
 # which project folder we want to work in
-#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+#setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
 
@@ -79,12 +78,12 @@ StatResults <- data.frame()
 # for(j in 1: 2){
 		 #- and for every gameweek
 		 for (i in 8:GWRange){
-i=8
+			 i=8
 			ModTrain <- df
 			# we'll create a couple of extra variables to make things a little easier
 			# for the model here each time
-			ModTrain$Relative.Form <- ModTrain$Team.Form - ModTrain$Opposition.Form
-			ModTrain$Relative.Odds <- ModTrain$Opposition.Odds - ModTrain$Team.Odds
+			ModTrain$Relative_Form <- ModTrain$Team_Form - ModTrain$Opposition_Form
+			ModTrain$Relative_Odds <- ModTrain$Opposition.Odds - ModTrain$Team.Odds
 			# As we're doing a classification model we want the dependent to be classes
 			ModTrain$Team_Goal_Diff <- ifelse(ModTrain$Team_Goal_Diff > 0, 2,
 																	ifelse(ModTrain$Team_Goal_Diff < 0, 0, 1))
@@ -100,7 +99,10 @@ i=8
 			TDat1 <- ModTrain[,variables]
 			TDat2 <- dummyVars("~.",data=TDat1)
 			TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
+			#- now we need to normalize the training data
 			TrainDatnames <- colnames(TrainDat)
+			#TrainDat <- normalizeData(TrainDat, type="0_1")
+			colnames(TrainDat) <- TrainDatnames
 
 			# same for the Dependent variable
 			Dependent <- data.frame(ModTrain$Team_Goal_Diff)
@@ -112,35 +114,40 @@ i=8
       # dependent and independent variables called out
 			TrainDat <- as.data.frame(TrainDat)
       trainTask <- makeClassifTask(data = TrainDat,
-											target = "ModTrain.Team_Goal_Diff")
+								target = "ModTrain.Team_Goal_Diff")
 
       Agg_Results <- data.frame()
 
         #-------- Gradient Boosting --------#
         ## Tuning in inner resampling loop
-          parallelStartSocket(3)
+		# So bizarrely I need to run the tuning and model while located in a
+		# folder that's on the local machine - not allowed play away from home
+		# as it were:
 
-					ptm <- proc.time()
-				  ps = makeParamSet(
-					makeIntegerParam("nrounds", lower = 1, upper = 30),
-					makeIntegerParam("max_depth", lower = 3, upper = 20),
-					makeNumericParam("lambda", lower=0.55, upper=0.60),
-					makeNumericParam("eta", lower = 0.001, upper = 0.5),
-					makeNumericParam("subsample", lower = 0.1, upper = 0.8),
-					makeNumericParam("min_child_weight", lower = 1, upper = 5),
-					makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8),
-					makeDiscreteParam(id = "objective", values = c("multi:softprob"), tunable = F)
-				  )
-				  ctrl = makeTuneControlMBO()
-				  inner = makeResampleDesc("Subsample", iters = 2)
-				  lrn = makeTuneWrapper("classif.xgboost", resampling = inner, par.set = ps, control = ctrl, show.info = FALSE)
+		setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/France/Model Data")
 
-				  ## Outer resampling loop
-				  outer = makeResampleDesc("CV", iters = 3)
-				  r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult, show.info = FALSE)
-				  parallelStop()
-				  proc.time()-ptm
+		parallelStartSocket(3)
 
+		ptm <- proc.time()
+		ps = makeParamSet(
+		  makeIntegerParam("nrounds", lower = 1, upper = 30),
+		  makeIntegerParam("max_depth", lower = 3, upper = 20),
+		  makeNumericParam("lambda", lower=0.55, upper=0.60),
+		  makeNumericParam("eta", lower = 0.001, upper = 0.5),
+		  makeNumericParam("subsample", lower = 0.1, upper = 0.8),
+		  makeNumericParam("min_child_weight", lower = 1, upper = 5),
+		  makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8),
+		  makeDiscreteParam(id = "objective", values = c("multi:softprob"), tunable = F)
+		)
+		ctrl = makeTuneControlMBO()
+		inner = makeResampleDesc("Subsample", iters = 2)
+		lrn = makeTuneWrapper("classif.xgboost", resampling = inner, par.set = ps, control = ctrl, show.info = FALSE)
+
+		## Outer resampling loop
+		outer = makeResampleDesc("CV", iters = 3)
+		r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult, show.info = FALSE)
+		parallelStop()
+		proc.time()-ptm
 				## pick out the best performing model type (not normally recommended)
 				# this is a little messy but we summarize the optimal fits
 				for (p in 1:length(r$extract)){
