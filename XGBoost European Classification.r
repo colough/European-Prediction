@@ -202,7 +202,7 @@ StatResults <- data.frame()
 
 
 #---------------- Gradient Boosting (Create prediction data) -----------------#
-	PredData <- df[Season <= Season_prediction & Game_Week_Index == i,]
+	PredData <- df[Season == Season_prediction & Game_Week_Index == i,]
 	# we'll create a couple of extra variables to make things a little
 	# easier for the model here each time
 	PredData$Relative_Form <- PredData$Team_Form -
