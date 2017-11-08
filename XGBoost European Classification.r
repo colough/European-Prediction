@@ -77,7 +77,7 @@ StatResults <- data.frame()
 # for(j in 1: 2){
 #------------------------ Loop through every gameweek -------------------------#
  for (i in 8:GWRange){
-	 i=17
+	 #i=17
 #------------------ Define and transform model training set -------------------#
 	ModTrain1 <- df[Season < Season_prediction,]
 	ModTrain2 <- df[Season == Season_prediction & Game_Week_Index < i,]
@@ -250,13 +250,17 @@ StatResults <- data.frame()
 	P_Opposition <- Fit[ Fit_Index == 0 , 1]
 	P_Team <- Fit[ Fit_Index == 2 , 1]
 
+	PredData$Season <- as.numeric(PredData$Season)
+	PredData <- as.data.table(PredData)
 
-	p1 <- PredData$Team
+	p1 <- df[Season == Season_prediction & Game_Week_Index == i,Team]
 	p1 <- as.data.frame(p1)
-	p2 <- rep(Season_prediction,nrow(PredData))
-	p3 <- PredData$Opposition
+	p2 <- rep(Season_prediction,nrow(PredDat))
+	p2 <- as.data.frame(p2)
+	p3 <- df[Season == Season_prediction & Game_Week_Index == i,Opposition]
 	p3 <- as.data.frame(p3)
-	p4 <- PredData$Game_Week_Index
+	p4 <- df[Season == Season_prediction & Game_Week_Index == i,
+													Game_Week_Index]
 	p4 <- as.data.frame(p4)
 
 	#-now we are back to stitching our prediction table together
