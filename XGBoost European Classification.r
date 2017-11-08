@@ -63,7 +63,7 @@ Team_Count <- Temp_Teams[,.N, by=HomeTeam]
 Team_Count <- Team_Count[N > 1]
 Teams <- Team_Count[,c("HomeTeam")]
 df <- df[df$HomeTeam %in% Teams$HomeTeam,]
-
+df <- df[df$AwayTeam %in% Teams$HomeTeam,]
 
 # Create empty containers to hold our results later:
 PredResults <- data.frame()
@@ -77,9 +77,12 @@ StatResults <- data.frame()
 # for(j in 1: 2){
 #------------------------ Loop through every gameweek -------------------------#
  for (i in 8:GWRange){
-	 #i=17
+	 i=17
 #------------------ Define and transform model training set -------------------#
-	ModTrain <- df[Season <= Season_prediction & Game_Week_Index < i,]
+	ModTrain1 <- df[Season < Season_prediction,]
+	ModTrain2 <- df[Season == Season_prediction & Game_Week_Index < i,]
+	ModTrain <- rbindlist(list(ModTrain1,ModTrain2))
+	ModTrain <- ModTrain[Game_Week_Index >= 7,]
 	# we'll create a couple of extra variables to make things a little
 	# easier for the model here each time
 	ModTrain$Relative_Form <- ModTrain$Team_Form -
@@ -119,6 +122,39 @@ StatResults <- data.frame()
 							target = "ModTrain.Team_Goal_Diff")
 
   	Agg_Results <- data.frame()
+#---------------- Gradient Boosting (Create prediction data) -----------------#
+	# The below line looks like a stupid mistake on my part but actually it's a
+	# deliberate mistake to counter a stupid mistake on R's part
+	PredData <- df[Game_Week_Index == i,]
+
+	# easier for the model here each time
+	PredData$Relative_Form <- PredData$Team_Form -
+								PredData$Opposition_Form
+	PredData$Relative_Odds <- PredData$Opposition_Odds -
+								PredData$Team_Odds
+	# Turn Seasons back into a factor so we can use it in the model
+	PredData$Season <- as.factor(PredData$Season)
+	PredData <- as.data.frame(PredData)
+
+
+	PDat1 <- PredData[,variables]
+	PDat2 <- dummyVars("~.",data=PDat1)
+	PredDat <- data.frame(predict(PDat2, newdata = PDat1))
+	#- now we need to normalize the prediction data
+	PredDatnames <- colnames(PredDat)
+	#PredDat <- normalizeData(PredDat, type="0_1")
+	colnames(PredDat) <- PredDatnames
+
+	# Now I have to dynamically filter to make up for that R mistake
+	# Just to be clear: R's mistake. Definitely not mine
+	Season_Col <- paste0("Season.",Season_prediction)
+	Cal_Season_Col <- as.character(unique(df[Season == Season_prediction &
+						Game_Week_Index == i,Calendar_Season]))
+	PredDat <- PredDat[PredDat[,eval(Season_Col)] == 1, ]
+
+	PredDat <- as.matrix(PredDat)
+	PredDat <- xgboost::xgb.DMatrix(PredDat)
+
 
 #----------------- Gradient Boosting (Hyperparameter Tuning) ------------------#
 
@@ -200,35 +236,6 @@ StatResults <- data.frame()
 	Pmod <- xgboost::xgb.train(param, dTrain, , nrounds = PM_nrounds,
 						objective = PM_objective, num_class = 3)
 
-
-#---------------- Gradient Boosting (Create prediction data) -----------------#
-	PredData <- df[Season == Season_prediction & Game_Week_Index == i,]
-	# we'll create a couple of extra variables to make things a little
-	# easier for the model here each time
-	PredData$Relative_Form <- PredData$Team_Form -
-								PredData$Opposition_Form
-	PredData$Relative_Odds <- PredData$Opposition_Odds -
-								PredData$Team_Odds
-	# Turn Seasons back into a factor so we can use it in the model
-	PredData$Season <- as.factor(PredData$Season)
-	PredData <- as.data.frame(PredData)
-
-	if( PredData$Opposition %in% ModTrain$Opposition){
-	# we need to set up PredData to be in the same format as the Training and
-	# Test data
-	PDat1 <- PredData[,variables]
-	# but on top of that you can't have categorical variables within the X
-	# matrix so to speak so we use a function to turn our categorical stuff
-	# into numeric data
-	PDat2 <- dummyVars("~.",data=PDat1)
-	PredDat <- data.frame(predict(PDat2, newdata = PDat1))
-	#- now we need to normalize the prediction data
-	PredDatnames <- colnames(PredDat)
-	#PredDat <- normalizeData(PredDat, type="0_1")
-	colnames(PredDat) <- PredDatnames
-	PredDat <- as.matrix(PredDat)
-	PredDat <- xgboost::xgb.DMatrix(PredDat)
-
 #--------------- Gradient Boosting (Prediction & Context data) ----------------#
 
 	#- Fit is a column of our predicted values
@@ -260,7 +267,7 @@ StatResults <- data.frame()
 	#- save the results
 	PredResults <- rbindlist(list(PredResults,AggP))
 
-	}
+
 	}
 
 
