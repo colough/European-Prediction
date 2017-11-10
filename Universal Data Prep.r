@@ -5,8 +5,8 @@ require(plyr)
 require(data.table)
 
 # which project folder we want to work in
-setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Input Data")
-
+#setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Input Data")
+setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Input Data")
 # Read in the data files and merge to create one European df
 Eng_df <- read.csv("England Prepped Input.csv", header = T)
 Fra_df <- read.csv("France Prepped Input.csv", header = T)
@@ -157,3 +157,13 @@ TeamData <- TeamData[order(TeamData$Div,TeamData$Season,
 # nope it'll never catch on I mean "cool"
 
 write.csv(TeamData, "C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data/Europe Prepped Output.csv", row.names=F)
+
+# For the calc sheet, export a few metrics
+TeamData <- as.data.table(TeamData)
+TeamData$Season <- gsub(" ", "", TeamData$Season)
+TeamData$Season <- as.numeric(TeamData$Season)
+Calc_Data <- TeamData[Season >= 20132014 & Game_Week_Index > 7,]
+Calc_Data <- Calc_Data[,c("Season","Team","Opposition","Game_Week_Index",
+"Team_Goal_Diff","Team_Odds","Opposition_Odds","Draw_Odds")]
+
+write.csv(Calc_Data, "C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data/Europe Calc Data.csv", row.names=F)
