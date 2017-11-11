@@ -25,7 +25,7 @@ Season_prediction <- 20152016
 # Are we doing a single market or Europe wide?
 # Take away any leagues you don't want included:
 # Full List: League <- c('D1','E0', 'F1', 'SP1')
-League <- c('E0', 'F1', 'SP1')
+League <- c('D1', 'E0', 'F1', 'SP1')
 
 # How many games in a season?
 GWRange <- 38 #- 38 games in a season son
@@ -39,7 +39,7 @@ setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Outpu
 #setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
-
+df <- df[complete.cases(df),]
 #--------------------------- Apply Seasonal Filters ---------------------------#
 # convert to numeric
 df$Season <- gsub(" ", "", df$Season)
@@ -253,6 +253,8 @@ StatResults <- data.frame()
 	PredData$Season <- as.numeric(PredData$Season)
 	PredData <- as.data.table(PredData)
 
+	div1 <- df[Season == Season_prediction & Game_Week_Index == i, Div]
+	div1 <- as.data.frame(div1)
 	p1 <- df[Season == Season_prediction & Game_Week_Index == i,Team]
 	p1 <- as.data.frame(p1)
 	p2 <- rep(Season_prediction,nrow(PredDat))
@@ -264,8 +266,8 @@ StatResults <- data.frame()
 	p4 <- as.data.frame(p4)
 
 	#-now we are back to stitching our prediction table together
-	AggP <- cbind(p1,p2,p3,p4,P_Draw,P_Opposition,P_Team) #- stitched together
-	colnames(AggP) <- c("Team", "Season", "Opposition", "Game.Week.Index",
+	AggP <- cbind(div1,p1,p2,p3,p4,P_Draw,P_Opposition,P_Team) #- stitched together
+	colnames(AggP) <- c("League","Team", "Season", "Opposition", "Game.Week.Index",
 						"P-Draw","P-Opposition","P-Team")
 
 	#- save the results
