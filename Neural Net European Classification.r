@@ -98,16 +98,15 @@ StatResults <- data.frame()
 	ModTrain$Team_Goal_Diff <- as.factor(ModTrain$Team_Goal_Diff)
 	ModTrain <- as.data.frame(ModTrain)
 	# Define the variables to be used and then create numeric dummies
-	variables <- c('Season','Div','Calendar_Season','Match_Tier','Home_Away',
+	variables <- c('Season','Calendar_Season','Match_Tier','Home_Away',
 	'Poisson_Result','Regress_Result','Relative_Form','Relative_Goals_Conceded_Form',
-	'Team_Handicap','Relative_Odds','Regress_Home','Regress_Away','Poisson_Home_Win',
-	'Poisson_Away_Win','Team_Favourite','Team_Odds','Team','Opposition')
+	'Team_Handicap','Relative_Odds')
 	TDat1 <- ModTrain[,variables]
 	TDat2 <- dummyVars("~.",data=TDat1)
 	TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
 	#- now we need to normalize the training data
 	TrainDatnames <- colnames(TrainDat)
-	#TrainDat <- normalizeData(TrainDat, type="0_1")
+	TrainDat <- normalizeData(TrainDat, type="0_1")
 	colnames(TrainDat) <- TrainDatnames
 
 	# same for the Dependent variable
@@ -123,7 +122,7 @@ StatResults <- data.frame()
 							target = "ModTrain.Team_Goal_Diff")
 
   	Agg_Results <- data.frame()
-#---------------- Gradient Boosting (Create prediction data) -----------------#
+#------------------ Neural Network (Create prediction data) -------------------#
 	# The below line looks like a stupid mistake on my part but actually it's a
 	# deliberate mistake to counter a stupid mistake on R's part
 	PredData <- df[Game_Week_Index == i,]
@@ -143,7 +142,7 @@ StatResults <- data.frame()
 	PredDat <- data.frame(predict(PDat2, newdata = PDat1))
 	#- now we need to normalize the prediction data
 	PredDatnames <- colnames(PredDat)
-	#PredDat <- normalizeData(PredDat, type="0_1")
+	PredDat <- normalizeData(PredDat, type="0_1")
 	colnames(PredDat) <- PredDatnames
 
 	# Now I have to dynamically filter to make up for that R mistake
@@ -153,11 +152,9 @@ StatResults <- data.frame()
 						Game_Week_Index == i,Calendar_Season]))
 	PredDat <- PredDat[PredDat[,eval(Season_Col)] == 1, ]
 
-	PredDat <- as.matrix(PredDat)
-	PredDat <- xgboost::xgb.DMatrix(PredDat)
 
 
-#----------------- Gradient Boosting (Hyperparameter Tuning) ------------------#
+#------------------ Neural Network (Hyperparameter Tuning) --------------------#
 
 	# When doing Hyperparameter tuning we need to save the model in a local
 	# folder so we temporarily move to the below
@@ -166,50 +163,60 @@ StatResults <- data.frame()
 
 	parallelStartSocket(3)
 	ptm <- proc.time()
-	ps = makeParamSet(
-	makeIntegerParam("nrounds", lower = 1, upper = 30),
-	makeIntegerParam("max_depth", lower = 3, upper = 20),
-	makeNumericParam("lambda", lower=0.55, upper=0.60),
-	makeNumericParam("eta", lower = 0.001, upper = 0.5),
-	makeNumericParam("subsample", lower = 0.1, upper = 0.8),
-	makeNumericParam("min_child_weight", lower = 1, upper = 8),
-	makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8),
-	makeDiscreteParam(id = "objective", values = c("multi:softprob"), tunable = F)
-	)
-	ctrl = makeTuneControlMBO()
-	inner = makeResampleDesc("Subsample", iters = 2)
-	# Tuning in Inner resampling loop
-	lrn = makeTuneWrapper("classif.xgboost", resampling = inner, par.set = ps,
-								control = ctrl, show.info = FALSE)
-
-	# tuning in Outer resampling loop
-	outer = makeResampleDesc("CV", iters = 3)
-	r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult,
-														show.info = FALSE)
-	parallelStop()
-	proc.time()-ptm
+    ps = makeParamSet(
+	makeIntegerVectorParam("size", len = 3, lower = 1, upper = 30),
+	makeDiscreteParam("initFunc", values = c("Randomize_Weights_Perc"), tunable = F),
+	makeDiscreteParam("learnFunc", values = c("BackPercolation"), tunable = F),
+	makeNumericVectorParam("learnFuncParams", len = 3, upper = c(10,0.2,0.2),
+		lower = c(1,0.2,0.2), default = c(5,0.2,0.2)),
+	makeDiscreteParam("hiddenActFunc", values = c("Act_TanH_Xdiv2"), tunable = F),
+	makeDiscreteParam(id = "updateFunc", values = c("Topological_Order",
+		"Serial_Order", "Synchronous_Order"))
+    )
+    ctrl = makeTuneControlMBO()
+    inner = makeResampleDesc("Subsample", iters = 2)
+    lrn = makeTuneWrapper("classif.mlp", resampling = inner, par.set = ps,
+										control = ctrl, show.info = FALSE)
+    ## Outer resampling loop
+    outer = makeResampleDesc("CV", iters = 3)
+    r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult,
+		show.info = FALSE)
+    parallelStop()
+    proc.time()-ptm
 	# Bring it back
 	#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 	setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 
-#---------------- Gradient Boosting (select best parameters) ------------------#
+#------------------ Neural Network (select best parameters) -------------------#
 	# this is a little messy but we summarize the optimal fits
 	for (p in 1:length(r$extract)){
-	    a <- unlist(r$extract[[p]])
-	    nrounds <- a$x.nrounds
-	    max_depth <- a$x.max_depth
-	    lambda <- a$x.lambda
-	    Score <- a$y.mmce.test.mean
-	    eta <- a$x.eta
-	    subsample <- a$x.subsample
-	    min_child_weight <- a$x.min_child_weight
-	    colsample_bytree <- a$x.colsample_bytree
-	    objective <- "multi:softprob"
-		Classifier_Results <- as.data.frame(cbind(nrounds, max_depth, lambda,
-		eta, Score, subsample, min_child_weight, colsample_bytree, objective))
-		Agg_Results <- rbindlist(list(Agg_Results,Classifier_Results), fill=T)
-		}
+        a <- unlist(r$extract[[p]])
+        size1 <- a$x.size1
+        size2 <- a$x.size2
+        size3 <- a$x.size3
+        Score <- a$y.mmce.test.mean
+        Activf <- a$x.hiddenActFunc
+        updatef <- a$x.updateFunc
+        Learnf <- a$x.learnFunc
+        LearnP1 <- a$x.learnFuncParams1
+        LearnP2 <- a$x.learnFuncParams2
+        LearnP3 <- a$x.learnFuncParams3
+        initF <- "Randomize_Weights_Perc"
+        Classifier_Results <- as.data.frame(cbind(Learnf, size1, size2, size3,
+			Score, updatef, Activf, LearnP1, LearnP3, LearnP2, initF))
+        Agg_Results <- rbindlist(list(Agg_Results,Classifier_Results), fill=T)
+        }
 
+	# transform the Agg_Results so that the formatting is ok
+	Agg_Results <- as.data.frame(Agg_Results)
+    for(l in c(2,3,4,5,8,9,11)){
+        d <- lapply(Agg_Results[,l], as.character, stringsAsFactors=FALSE)
+        d <- unlist(d)
+        d <- as.data.frame(d)
+        d[,1] <- as.character(d[,1])
+        d[,1] <- as.numeric(d[,1])
+        Agg_Results[,l] <- d
+    }
 	# tidy up any messy bits
 	Agg_Results[is.na(Agg_Results)] <- 0
 
@@ -218,38 +225,36 @@ StatResults <- data.frame()
 	# Transform Traindat back to being just numeric for the actual model build
 	TrainDat <- TrainDat[,-ncol(TrainDat)]
 
-#----------------- Gradient Boosting (build best model type) ------------------#
-	PM_nrounds <- as.numeric(as.character(Model_Structure$nrounds))
-	PM_max_depth <- as.character(Model_Structure$max_depth)
-	PM_lambda <- as.character(Model_Structure$lambda)
-	PM_eta <- as.character(Model_Structure$eta)
-	PM_subsample <- as.character(Model_Structure$subsample)
-	PM_min_child_weight <- as.character(Model_Structure$min_child_weight)
-	PM_colsample_bytree <- as.character(Model_Structure$colsample_bytree)
-	PM_objective <- as.character(Model_Structure$objective)
+#------------------ Neural Network (build best model type) --------------------#
 
-	TrainDat <- as.matrix(TrainDat)
-	Dependent <- as.matrix(Dependent)
-	dTrain <- xgboost::xgb.DMatrix(TrainDat, label = Dependent)
-	param <- list(max_depth = PM_max_depth, lambda = PM_lambda, eta = PM_eta,
-			subsample = PM_subsample, min_child_weight = PM_min_child_weight,
-			colsample_bytree = PM_colsample_bytree)
-	Pmod <- xgboost::xgb.train(param, dTrain, , nrounds = PM_nrounds,
-						objective = PM_objective, num_class = 3)
+	Layers <- c(Model_Structure[1,2], Model_Structure[1,3], Model_Structure[1,4])
+	PM_initFunc <- as.character(Model_Structure[1,10])
+	PM_Learn <- as.character(Model_Structure[1,1])
+	PM_Act <- as.character(Model_Structure[1,7])
+	PM_Update <- as.character(Model_Structure[1,6])
 
-#--------------- Gradient Boosting (Prediction & Context data) ----------------#
+	# Different algorithms need different parameters so we set up an if
+	# statement to choose the right structure
+    if(Model_Structure[1,1] == "Std_Backpropagation" |
+	Model_Structure[1,1] == "TimeDelayBackprop" |
+	Model_Structure[1,1] == "BackpropBatch"){
+        Learn_P <- c(Model_Structure[1,8],Model_Structure[1,9])
+    }else{
+        Learn_P <- c(Model_Structure[1,8],Model_Structure[1,9],
+			Model_Structure[1,11])
+    }
+
+	Pmod <- mlp(TrainDat,TestDat,size=Layers, maxit=500, initFunc = PM_initFunc,
+	 learnFunc = PM_Learn , learnFuncParams = Learn_P, hiddenActFunc = PM_Act,
+	 updateFunc = PM_Update)
+
+#------------------ Neural Network (Prediction & Context data) ----------------#
 
 	#- Fit is a column of our predicted values
 	#-Act is the actual result in terms of goal difference
 	Fit <- predict(Pmod, PredDat)
 	Fit <- as.data.table(Fit)
-	# have to split up the predictions
-	Fit_index <- as.data.frame(rep(c(0,1,2),nrow(Fit)/3))
-	colnames(Fit_index) <- "Fit_Index"
-	Fit <- cbind(Fit,Fit_index)
-	P_Draw <- Fit[ Fit_Index == 1 , 1]
-	P_Opposition <- Fit[ Fit_Index == 0 , 1]
-	P_Team <- Fit[ Fit_Index == 2 , 1]
+
 
 	PredData$Season <- as.numeric(PredData$Season)
 	PredData <- as.data.table(PredData)
