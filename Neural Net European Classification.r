@@ -35,8 +35,8 @@ GWRange <- 38 #- 38 games in a season son
 ##############################################################################
 
 # which project folder we want to work in
-#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+#setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
 df <- df[complete.cases(df),]
@@ -158,8 +158,8 @@ StatResults <- data.frame()
 
 	# When doing Hyperparameter tuning we need to save the model in a local
 	# folder so we temporarily move to the below
-	#setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
-	setwd ("C:/Users/ciana/Documents/Football Predictions/Europe")
+	setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
+	#setwd ("C:/Users/ciana/Documents/Football Predictions/Europe")
 
 	parallelStartSocket(3)
 	ptm <- proc.time()
@@ -184,8 +184,8 @@ StatResults <- data.frame()
     parallelStop()
     proc.time()-ptm
 	# Bring it back
-	#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-	setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+	setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+	#setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 
 #------------------ Neural Network (select best parameters) -------------------#
 	# this is a little messy but we summarize the optimal fits
@@ -244,7 +244,7 @@ StatResults <- data.frame()
 			Model_Structure[1,11])
     }
 
-	Pmod <- mlp(TrainDat,TestDat,size=Layers, maxit=500, initFunc = PM_initFunc,
+	Pmod <- mlp(TrainDat,Dependent,size=Layers, maxit=500, initFunc = PM_initFunc,
 	 learnFunc = PM_Learn , learnFuncParams = Learn_P, hiddenActFunc = PM_Act,
 	 updateFunc = PM_Update)
 
@@ -284,4 +284,4 @@ StatResults <- data.frame()
 
 
 
-write.csv(PredResults, "Prediction 2015 2016.csv")
+write.csv(PredResults, "Neural Net Prediction 2015 2016.csv")
