@@ -69,9 +69,9 @@ df <- df[df$AwayTeam %in% Teams$HomeTeam,]
 PredResults <- data.frame()
 StatResults <- data.frame()
 
-##############################################################################
-#-------------------------------Model Building-------------------------------#
-##############################################################################
+################################################################################
+#------------------------------- Model Building -------------------------------#
+################################################################################
 
 # ok so this is the meat of the action where for every team we...
 # for(j in 1: 2){
@@ -93,8 +93,8 @@ StatResults <- data.frame()
 	ModTrain$Season <- as.factor(ModTrain$Season)
 	# As we're doing a classification model we want the dependent to be
 	# classes
-	ModTrain$Team_Goal_Diff <- ifelse(ModTrain$Team_Goal_Diff > 0, 2,
-							ifelse(ModTrain$Team_Goal_Diff < 0, 0, 1))
+	ModTrain$Team_Goal_Diff <- ifelse(ModTrain$Team_Goal_Diff > 0, 1,
+							ifelse(ModTrain$Team_Goal_Diff < 0, 0, -1))
 	ModTrain$Team_Goal_Diff <- as.factor(ModTrain$Team_Goal_Diff)
 	ModTrain <- as.data.frame(ModTrain)
 	# Define the variables to be used and then create numeric dummies
@@ -109,10 +109,17 @@ StatResults <- data.frame()
 	TrainDat <- normalizeData(TrainDat, type="0_1")
 	colnames(TrainDat) <- TrainDatnames
 
-	# same for the Dependent variable
-	Dependent <- data.frame(ModTrain$Team_Goal_Diff)
   	# for this package it wants a single column with the the three groups
-		# to classify
+	Dependent <- data.frame(ModTrain$Team_Goal_Diff)
+	Tester <- data.frame(ModTrain$Team_Goal_Diff)
+	TDat2 <- dummyVars("~.",data=Tester)
+	TestDat <- data.frame(predict(TDat2, newdata = Tester))
+	#- now we need to normalize the training data
+	TestDatnames <- colnames(TestDat)
+	TestDat <- normalizeData(TestDat, type="0_1")
+	colnames(TestDat) <- TestDatnames
+
+	# to classify
  	TrainDat <- cbind(TrainDat, Dependent)
 
 	# ok so to start modelling we have to declare a so called 'task', with the
@@ -170,8 +177,8 @@ StatResults <- data.frame()
 	makeNumericVectorParam("learnFuncParams", len = 3, upper = c(10,0.2,0.2),
 		lower = c(1,0.2,0.2), default = c(5,0.2,0.2)),
 	makeDiscreteParam("hiddenActFunc", values = c("Act_TanH_Xdiv2"), tunable = F),
-	makeDiscreteParam(id = "updateFunc", values = c("Topological_Order",
-		"Serial_Order", "Synchronous_Order"))
+	makeDiscreteParam(id = 'updateFunc', values = c('Topological_Order',
+		'Serial_Order', 'Synchronous_Order'))
     )
     ctrl = makeTuneControlMBO()
     inner = makeResampleDesc("Subsample", iters = 2)
@@ -244,7 +251,7 @@ StatResults <- data.frame()
 			Model_Structure[1,11])
     }
 
-	Pmod <- mlp(TrainDat,Dependent,size=Layers, maxit=500, initFunc = PM_initFunc,
+	Pmod <- mlp(TrainDat,TestDat,size=Layers, maxit=500, initFunc = PM_initFunc,
 	 learnFunc = PM_Learn , learnFuncParams = Learn_P, hiddenActFunc = PM_Act,
 	 updateFunc = PM_Update)
 
@@ -272,7 +279,7 @@ StatResults <- data.frame()
 	p4 <- as.data.frame(p4)
 
 	#-now we are back to stitching our prediction table together
-	AggP <- cbind(div1,p1,p2,p3,p4,P_Draw,P_Opposition,P_Team)
+	AggP <- cbind(div1,p1,p2,p3,p4,Fit)
 	colnames(AggP) <- c("League","Team", "Season", "Opposition", "Game.Week.Index",
 						"P-Draw","P-Opposition","P-Team")
 
