@@ -24,8 +24,8 @@ require(devtools)
 Season_prediction <- 20152016
 # Are we doing a single market or Europe wide?
 # Take away any leagues you don't want included:
-# Full List: League <- c('D1','E0', 'F1', 'SP1')
-League <- c('D1', 'E0', 'F1', 'SP1')
+# Full List: League <- c('D1','E0', 'F1', 'SP1', 'I1')
+League <- c('D1','E0', 'F1', 'SP1', 'I1')
 
 # How many games in a season?
 GWRange <- 38 #- 38 games in a season son
@@ -278,4 +278,4 @@ StatResults <- data.frame()
 
 
 
-write.csv(PredResults, "Prediction 2015 2016.csv")
+write.csv(PredResults, paste0("Prediction ",Season_prediction,".csv"))
