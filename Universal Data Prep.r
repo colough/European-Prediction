@@ -12,8 +12,9 @@ Eng_df <- read.csv("England Prepped Input.csv", header = T)
 Fra_df <- read.csv("France Prepped Input.csv", header = T)
 Ger_df <- read.csv("Germany Prepped Input.csv", header = T)
 Spa_df <- read.csv("Spain Prepped Input.csv", header = T)
+Ita_df <- read.csv("Italy Prepped Input.csv", header = T)
 
-df <- rbindlist(list(Eng_df,Fra_df,Ger_df,Spa_df), use.names=T)
+df <- rbindlist(list(Eng_df,Fra_df,Ger_df,Spa_df, Ita_df), use.names=T)
 df <- as.data.frame(df)
 # so what we need to do is create a unique list of the teams involved in the
 # latest season

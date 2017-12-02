@@ -98,10 +98,9 @@ StatResults <- data.frame()
 	ModTrain$Team_Goal_Diff <- as.factor(ModTrain$Team_Goal_Diff)
 	ModTrain <- as.data.frame(ModTrain)
 	# Define the variables to be used and then create numeric dummies
-	variables <- c('Season','Div','Calendar_Season','Match_Tier','Home_Away',
-	'Poisson_Result','Regress_Result','Relative_Form','Relative_Goals_Conceded_Form',
-	'Team_Handicap','Relative_Odds','Regress_Home','Regress_Away','Poisson_Home_Win',
-	'Poisson_Away_Win','Team_Favourite','Team_Odds','Team','Opposition')
+	variables <- c('Season','Calendar_Season','Match_Tier','Home_Away',
+	'Poisson_Result','Regress_Result','Relative_Form',
+	'Team_Handicap','Relative_Odds')
 	TDat1 <- ModTrain[,variables]
 	TDat2 <- dummyVars("~.",data=TDat1)
 	TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
@@ -170,9 +169,9 @@ StatResults <- data.frame()
 	makeIntegerParam("nrounds", lower = 1, upper = 30),
 	makeIntegerParam("max_depth", lower = 3, upper = 30),
 	makeNumericParam("lambda", lower=0.55, upper=0.60),
-	makeNumericParam("eta", lower = 0.001, upper = 0.1),
+	makeNumericParam("eta", lower = 0.001, upper = 0.5),
 	makeNumericParam("subsample", lower = 0.1, upper = 0.8),
-	makeNumericParam("min_child_weight", lower = 1, upper = 300),
+	makeNumericParam("min_child_weight", lower = 1, upper = 350),
 	makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8),
 	makeDiscreteParam(id = "objective", values = c("multi:softprob"), tunable = F)
 	)
