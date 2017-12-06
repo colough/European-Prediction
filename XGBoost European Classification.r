@@ -167,11 +167,11 @@ StatResults <- data.frame()
 	ptm <- proc.time()
 	ps = makeParamSet(
 	makeIntegerParam("nrounds", lower = 1, upper = 30),
-	makeIntegerParam("max_depth", lower = 3, upper = 30),
+	makeIntegerParam("max_depth", lower = 3, upper = 50),
 	makeNumericParam("lambda", lower=0.55, upper=0.60),
-	makeNumericParam("eta", lower = 0.001, upper = 0.5),
+	makeNumericParam("eta", lower = 0.001, upper = 0.1),
 	makeNumericParam("subsample", lower = 0.1, upper = 0.8),
-	makeNumericParam("min_child_weight", lower = 1, upper = 350),
+	makeNumericParam("min_child_weight", lower = 1, upper = 10),
 	makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8),
 	makeDiscreteParam(id = "objective", values = c("multi:softprob"), tunable = F)
 	)
