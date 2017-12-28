@@ -167,16 +167,16 @@ StatResults <- data.frame()
 	ptm <- proc.time()
 	ps = makeParamSet(
 	makeIntegerParam("nrounds", lower = 1, upper = 30),
-	makeIntegerParam("max_depth", lower = 3, upper = 30),
+	makeIntegerParam("max_depth", lower = 3, upper = 10),
 	makeNumericParam("lambda", lower=0.55, upper=0.60),
 	makeNumericParam("eta", lower = 0.001, upper = 0.5),
 	makeNumericParam("subsample", lower = 0.1, upper = 0.8),
-	makeNumericParam("min_child_weight", lower = 1, upper = 350),
+	makeNumericParam("min_child_weight", lower = 0.5, upper = 8),
 	makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8),
 	makeDiscreteParam(id = "objective", values = c("multi:softprob"), tunable = F)
 	)
 	ctrl = makeTuneControlMBO()
-	inner = makeResampleDesc("Subsample", iters = 2)
+	inner = makeResampleDesc("Subsample", iters = 3)
 	# Tuning in Inner resampling loop
 	lrn = makeTuneWrapper("classif.xgboost", resampling = inner, par.set = ps,
 								control = ctrl, show.info = FALSE)
