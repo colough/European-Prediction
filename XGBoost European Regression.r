@@ -21,7 +21,7 @@ require(devtools)
 #-----------------------------Parameter Settings-----------------------------#
 ##############################################################################
 # what Season are we predicting? (Enter numeric)
-Season_prediction <- 20132014
+Season_prediction <- 20152016
 # Are we doing a single market or Europe wide?
 # Take away any leagues you don't want included:
 # Full List: League <- c('D1','E0', 'F1', 'SP1', 'I1')
@@ -91,11 +91,7 @@ StatResults <- data.frame()
 								ModTrain$Team_Odds
 	# Turn Seasons back into a factor so we can use it in the model
 	ModTrain$Season <- as.factor(ModTrain$Season)
-	# As we're doing a classification model we want the dependent to be
-	# classes
-	ModTrain$Team_Goal_Diff <- ifelse(ModTrain$Team_Goal_Diff > 0, 2,
-							ifelse(ModTrain$Team_Goal_Diff < 0, 0, 1))
-	ModTrain$Team_Goal_Diff <- as.factor(ModTrain$Team_Goal_Diff)
+
 	ModTrain <- as.data.frame(ModTrain)
 	# Define the variables to be used and then create numeric dummies
 	variables <- c('Season','Calendar_Season','Match_Tier','Home_Away',
@@ -118,7 +114,7 @@ StatResults <- data.frame()
 	# ok so to start modelling we have to declare a so called 'task', with the
 	# dependent and independent variables called out
 	TrainDat <- as.data.frame(TrainDat)
-	trainTask <- makeClassifTask(data = TrainDat,
+	trainTask <- makeRegrTask(data = TrainDat,
 							target = "ModTrain.Team_Goal_Diff")
 
   	Agg_Results <- data.frame()
@@ -173,12 +169,12 @@ StatResults <- data.frame()
 	makeNumericParam("subsample", lower = 0.1, upper = 0.8),
 	makeNumericParam("min_child_weight", lower = 0.5, upper = 8),
 	makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8),
-	makeDiscreteParam(id = "objective", values = c("multi:softprob"), tunable = F)
+	makeDiscreteParam(id = "objective", values = c("reg:linear"), tunable = F)
 	)
 	ctrl = makeTuneControlMBO()
 	inner = makeResampleDesc("Subsample", iters = 3)
 	# Tuning in Inner resampling loop
-	lrn = makeTuneWrapper("classif.xgboost", resampling = inner, par.set = ps,
+	lrn = makeTuneWrapper("regr.xgboost", resampling = inner, par.set = ps,
 								control = ctrl, show.info = FALSE)
 
 	# tuning in Outer resampling loop
@@ -198,12 +194,12 @@ StatResults <- data.frame()
 	    nrounds <- a$x.nrounds
 	    max_depth <- a$x.max_depth
 	    lambda <- a$x.lambda
-	    Score <- a$y.mmce.test.mean
+	    Score <- a$y.mse.test.mean
 	    eta <- a$x.eta
 	    subsample <- a$x.subsample
 	    min_child_weight <- a$x.min_child_weight
 	    colsample_bytree <- a$x.colsample_bytree
-	    objective <- "multi:softprob"
+	    objective <- "reg:linear"
 		Classifier_Results <- as.data.frame(cbind(nrounds, max_depth, lambda,
 		eta, Score, subsample, min_child_weight, colsample_bytree, objective))
 		Agg_Results <- rbindlist(list(Agg_Results,Classifier_Results), fill=T)
@@ -213,7 +209,7 @@ StatResults <- data.frame()
 	Agg_Results[is.na(Agg_Results)] <- 0
 
 	# find the most accurate row
-	Model_Structure <- Agg_Results[which.max(Agg_Results$Score),]
+	Model_Structure <- Agg_Results[which.min(Agg_Results$Score),]
 	# Transform Traindat back to being just numeric for the actual model build
 	TrainDat <- TrainDat[,-ncol(TrainDat)]
 
@@ -234,48 +230,147 @@ StatResults <- data.frame()
 			subsample = PM_subsample, min_child_weight = PM_min_child_weight,
 			colsample_bytree = PM_colsample_bytree)
 	Pmod <- xgboost::xgb.train(param, dTrain, , nrounds = PM_nrounds,
-						objective = PM_objective, num_class = 3)
+						objective = PM_objective)
 
-#--------------- Gradient Boosting (Prediction & Context data) ----------------#
+#----------------- Gradient Boosting (Find optimal c-values) ------------------#
+	# Fit is a matrix of predicted values for each principle component
+	# Act is the actual result in terms of goal difference
 
-	#- Fit is a column of our predicted values
-	#-Act is the actual result in terms of goal difference
-	Fit <- predict(Pmod, PredDat)
-	Fit <- as.data.table(Fit)
-	# have to split up the predictions
-	Fit_index <- as.data.frame(rep(c(0,1,2),nrow(Fit)/3))
-	colnames(Fit_index) <- "Fit_Index"
-	Fit <- cbind(Fit,Fit_index)
-	P_Draw <- Fit[ Fit_Index == 1 , 1]
-	P_Opposition <- Fit[ Fit_Index == 0 , 1]
-	P_Team <- Fit[ Fit_Index == 2 , 1]
+	Fit <- predict(Pmod, dTrain)
+	Fit <- as.data.frame(Fit)
+	Act <- ModTrain$Team.Goal.Diff
+	#- Resers siameses them together
+	Resers <- cbind(Dependent,Fit)
+	colnames(Resers)[1] <- "Act"
+	Resers <- as.data.frame(Resers)
 
-	PredData$Season <- as.numeric(PredData$Season)
-	PredData <- as.data.table(PredData)
+	# now create the cartesian list of c-value possibilities
+	x <- c(0.1,0.25,0.5,0.75,1)
+	CVala <- rep(x,each=length(x))
+	CVala <- as.data.frame(CVala)
+	CValb <- rep(x,times=length(x))
+	CValb <- as.data.frame(CValb)
+	CValues <- cbind(CVala,CValb)
+	CValues <- as.data.frame(CValues)
 
-	div1 <- df[Season == Season_prediction & Game_Week_Index == i, Div]
-	div1 <- as.data.frame(div1)
-	p1 <- df[Season == Season_prediction & Game_Week_Index == i,Team]
-	p1 <- as.data.frame(p1)
-	p2 <- rep(Season_prediction,nrow(PredDat))
-	p2 <- as.data.frame(p2)
-	p3 <- df[Season == Season_prediction & Game_Week_Index == i,Opposition]
-	p3 <- as.data.frame(p3)
-	p4 <- df[Season == Season_prediction & Game_Week_Index == i,
-													Game_Week_Index]
-	p4 <- as.data.frame(p4)
+	# now we run a for loop which goes through the C-value combinations and checks
+	# what the story is with the old accuracy levels, for each combination we want
+	# to figure out what the maximum accuracy achieved is and then we want to see
+	# where the elbow point is for the pc's we'll get that by looking at where
+	# there's the greatest increase in predictions and take the first one
 
-	#-now we are back to stitching our prediction table together
-	AggP <- cbind(div1,p1,p2,p3,p4,P_Draw,P_Opposition,P_Team)
-	colnames(AggP) <- c("League","Team", "Season", "Opposition", "Game.Week.Index",
-						"P-Draw","P-Opposition","P-Team")
+	a <- nrow(Resers)
+	b <- ncol(Resers)
 
-	#- save the results
-	PredResults <- rbindlist(list(PredResults,AggP))
+	# Create ResP1 which is the actual goal difference transformed in to class
+	# results (-1,0,1) first column of our new dataframe will be the actual result
+	ResP1 <- data.frame()
+	# just create this as a temporary measure so that things are the right size
+	ResP1 <- rep(1,nrow(Resers))
+	ResP1 <- as.data.frame(ResP1)
+	# classify the actual goal difference into the results
+	ResP1$Act <- ifelse(Resers$Act >0,1,ifelse(Resers$Act < 0, -1, 0))
+	# get rid of the temp column cause things are cool now size wise
+	ResP1 <- ResP1[,-1]
+	head(ResP1)
+	ResP1 <- as.data.frame(ResP1)
+
+	# ok shtuff gets a bit mad here so pay attention:
+	# so for each of the possible C-value combinations we want to check what the
+	# accuracy is ToSt is to house the
+	ToSt <- as.data.frame(1)
+	for (d in 1:nrow(CValues)){
+
+		for(f in 2:ncol(Resers)){
+			# for each principle component we classify the predicted values in to what
+			# the result would be
+			ResP1[,f] <- ifelse(Resers[,f] > CValues[d,1],1,ifelse(Resers[,f] <
+																												-1*CValues[d,2], -1, 0))
+			}
+		# Sust houses the count of correct predictions
+		# first we set it to be a series of 1's so it's the right size, as above
+		SuSt <- rep(1,a)
+		SuSt <- as.data.frame(SuSt)
+		for (k in 2:ncol(ResP1)){
+			# but now what we want to do is create a "truth" matrix where 1 indicates
+			# a correct prediction
+			SuSt[,k-1] <- ifelse(ResP1[,k] == ResP1[,1],1,0)
+			}
+		TempSt <- as.data.frame(1)
+		# TempSt houses the accuracy of each principle component
+		for (l in 1:ncol(SuSt)){
+			# aggregate each of the columns of SuSt
+			TempSt[,l] <- sum(SuSt[,l])
+			# express it as a percentage of accuracy
+			TempSt[2,l] <- TempSt[1,l] / nrow(SuSt)
+			}
+		# this is the max accuracy level
+		M1 <- max(TempSt[2,])
+		TempStp1 <- as.data.frame(1)
+		# TempSp1 tells us the where the elbow points are for the principle components
+		#for (m in 2:ncol(TempSt)){
+		#	TempStp1[,m-1] <- TempSt[1,m] - TempSt[1,m-1]
+		#	}
+
+		# it's plus one because the first column is ignored because it can't be the
+		# elbow
+		M2 <- match(max(TempStp1),TempStp1)+1
+		# what's the highest accuracy achieved by the principle components
+		M3 <- match(M1, TempSt[2,])
+		# set up TempStp2 as a house for the summary information
+		TempStp2 <- as.data.frame(1)
+		TempStp2[,1] <- ModTrain$Team[1] # the Team we're modelling
+		TempStp2[,2] <- CValues[d,1] # the positive C-Value
+		TempStp2[,3] <- CValues[d,2] # the negative C-Value
+		TempStp2[,4] <- M1 # the accuracy
+		TempStp2[,5] <- M2 # the Elbow P.C
+		TempStp2[,6] <- M3 # the maximum accuracy
+
+	# then if this is the first set of C-Values we're running through save ToSt as
+	# TempStp2 else tack it on at the end
+		if(d == 1){
+			ToSt<- TempStp2
+			}else{
+			ToSt <- rbind(ToSt,TempStp2)
+		}
 
 
 	}
+# rename the matrix that has the different results based on all the c-values
+colnames(ToSt) <- c("Team", "Pos C-Value", "Neg C-Value", "Max Accuracy",
+ 										"Elbow P.C", "Max Acc P.C")
+
+# this is the row where the maximum accuracy is across the c-values
+PC1 <- match(max(ToSt[,4]),ToSt[,4])
+# ToStp is just going to be that row
+ToStp <- ToSt[PC1,]
+# this below bit is to make sure that if a team appears more than once in a
+# gameweek we pick up all matches
+ap <- nrow(PredData)
+
+# now we are back to stitching our prediction table together
+PredData$Season <- as.numeric(PredData$Season)
+PredData <- as.data.table(PredData)
+
+div1 <- df[Season == Season_prediction & Game_Week_Index == i, Div]
+div1 <- as.data.frame(div1)
+p1 <- df[Season == Season_prediction & Game_Week_Index == i,Team]
+p1 <- as.data.frame(p1)
+p2 <- rep(Season_prediction,nrow(PredDat))
+p2 <- as.data.frame(p2)
+p3 <- df[Season == Season_prediction & Game_Week_Index == i,Opposition]
+p3 <- as.data.frame(p3)
+p4 <- df[Season == Season_prediction & Game_Week_Index == i,
+												Game_Week_Index]
+p4 <- as.data.frame(p4)
+p5a <- predict(Pmod, PredDat)
+p5a <- as.data.frame(p5a)
+AggP <- cbind(p1,p2,p3,p4,p5a,ToStp[,2],ToStp[,3],ToStp[,4]) # stitched together
+colnames(AggP) <- c("Team", "Season", "Opposition", "Game.Week.Index",
+										"Prediction", "Pos C-Value", "Neg C-Value", "Max Accuracy")
+# save the results
+	PredResults <- rbindlist(list(PredResults,AggP))
+}
 
 
-
-write.csv(PredResults, paste0("Prediction ",Season_prediction,".csv"))
+write.csv(PredResults, paste0("Prediction Regression",Season_prediction,".csv"))
