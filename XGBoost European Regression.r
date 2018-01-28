@@ -209,18 +209,19 @@ StatResults <- data.frame()
 	Agg_Results[is.na(Agg_Results)] <- 0
 
 	# find the most accurate row
+	Agg_Results$Score <- as.numeric(as.character(Agg_Results$Score))
 	Model_Structure <- Agg_Results[which.min(Agg_Results$Score),]
 	# Transform Traindat back to being just numeric for the actual model build
 	TrainDat <- TrainDat[,-ncol(TrainDat)]
 
 #----------------- Gradient Boosting (build best model type) ------------------#
 	PM_nrounds <- as.numeric(as.character(Model_Structure$nrounds))
-	PM_max_depth <- as.character(Model_Structure$max_depth)
-	PM_lambda <- as.character(Model_Structure$lambda)
-	PM_eta <- as.character(Model_Structure$eta)
-	PM_subsample <- as.character(Model_Structure$subsample)
-	PM_min_child_weight <- as.character(Model_Structure$min_child_weight)
-	PM_colsample_bytree <- as.character(Model_Structure$colsample_bytree)
+	PM_max_depth <- as.numeric(as.character(Model_Structure$max_depth))
+	PM_lambda <- as.numeric(as.character(Model_Structure$lambda))
+	PM_eta <- as.numeric(as.character(Model_Structure$eta))
+	PM_subsample <- as.numeric(as.character(Model_Structure$subsample))
+	PM_min_child_weight <- as.numeric(as.character(Model_Structure$min_child_weight))
+	PM_colsample_bytree <- as.numeric(as.character(Model_Structure$colsample_bytree))
 	PM_objective <- as.character(Model_Structure$objective)
 
 	TrainDat <- as.matrix(TrainDat)
@@ -235,12 +236,10 @@ StatResults <- data.frame()
 #----------------- Gradient Boosting (Find optimal c-values) ------------------#
 	# Fit is a matrix of predicted values for each principle component
 	# Act is the actual result in terms of goal difference
-
-	Fit <- predict(Pmod, dTrain)
-	Fit <- as.data.frame(Fit)
-	Act <- ModTrain$Team.Goal.Diff
-	#- Resers siameses them together
-	Resers <- cbind(Dependent,Fit)
+	iter <- which.min(Agg_Results$Score)
+	Resers <- as.data.frame(r$pred)
+	Resers <- Resers[Resers$iter == iter,]
+	Resers <- Resers[,2:3]
 	colnames(Resers)[1] <- "Act"
 	Resers <- as.data.frame(Resers)
 
