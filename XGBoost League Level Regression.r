@@ -75,14 +75,14 @@ StatResults <- data.frame()
 
 # ok so this is the meat of the action where for every league we...
  for(j in 1:length(League)){
-#------------------ Loop through every league and gameweek --------------------#
-df <- df[Div %in% League[j]]
+#------------------------ Loop through every gameweek -------------------------#
+dt <- df[Div %in% League[j]]
 
-	 for (i in 8:max(df$Game_Week)){
+	 for (i in 8:max(dt$Game_Week)){
 		 #i=17
-	#------------------ Define and transform model training set -------------------#
-		ModTrain1 <- df[Season < Season_prediction,]
-		ModTrain2 <- df[Season == Season_prediction & Game_Week_Index < i,]
+	#----------------- Define and transform model training set ------------------#
+		ModTrain1 <- dt[Season < Season_prediction,]
+		ModTrain2 <- dt[Season == Season_prediction & Game_Week_Index < i,]
 		ModTrain <- rbindlist(list(ModTrain1,ModTrain2))
 		ModTrain <- ModTrain[Game_Week_Index >= 7,]
 		# we'll create a couple of extra variables to make things a little
@@ -123,7 +123,7 @@ df <- df[Div %in% League[j]]
 	#---------------- Gradient Boosting (Create prediction data) -----------------#
 		# The below line looks like a stupid mistake on my part but actually it's a
 		# deliberate mistake to counter a stupid mistake on R's part
-		PredData <- df[Game_Week_Index == i,]
+		PredData <- dt[Game_Week_Index == i,]
 
 		# easier for the model here each time
 		PredData$Relative_Form <- PredData$Team_Form -
@@ -146,7 +146,7 @@ df <- df[Div %in% League[j]]
 		# Now I have to dynamically filter to make up for that R mistake
 		# Just to be clear: R's mistake. Definitely not mine
 		Season_Col <- paste0("Season.",Season_prediction)
-		Cal_Season_Col <- as.character(unique(df[Season == Season_prediction &
+		Cal_Season_Col <- as.character(unique(dt[Season == Season_prediction &
 							Game_Week_Index == i,Calendar_Season]))
 		PredDat <- PredDat[PredDat[,eval(Season_Col)] == 1, ]
 
@@ -353,15 +353,15 @@ df <- df[Div %in% League[j]]
 	PredData$Season <- as.numeric(PredData$Season)
 	PredData <- as.data.table(PredData)
 
-	div1 <- df[Season == Season_prediction & Game_Week_Index == i, Div]
+	div1 <- dt[Season == Season_prediction & Game_Week_Index == i, Div]
 	div1 <- as.data.frame(div1)
-	p1 <- df[Season == Season_prediction & Game_Week_Index == i,Team]
+	p1 <- dt[Season == Season_prediction & Game_Week_Index == i,Team]
 	p1 <- as.data.frame(p1)
 	p2 <- rep(Season_prediction,nrow(PredDat))
 	p2 <- as.data.frame(p2)
-	p3 <- df[Season == Season_prediction & Game_Week_Index == i,Opposition]
+	p3 <- dt[Season == Season_prediction & Game_Week_Index == i,Opposition]
 	p3 <- as.data.frame(p3)
-	p4 <- df[Season == Season_prediction & Game_Week_Index == i,
+	p4 <- dt[Season == Season_prediction & Game_Week_Index == i,
 													Game_Week_Index]
 	p4 <- as.data.frame(p4)
 	p5a <- predict(Pmod, PredDat)
