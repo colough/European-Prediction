@@ -8,12 +8,20 @@
 
 require(data.table)
 require(lubridate)
+
 ################################################################################
 #-=----------------------------Parameter Setting-------------------------------#
 ################################################################################
 # That one equals above is an OCD test. How'd you do?
 # what countries are to be included?
 Country <- c("England", "France", "Spain", "Italy", "Germany")
+
+# Load up the data to be merged to the aggregated files:
+Treasure_Map <- paste0("C:/Users/ciana/OneDrive/SONY_16M1/",
+"Football Predictions/Europe/Input Data")
+setwd(Treasure_Map)
+Game_Week_Goodies <- read.csv("GameWeek_Lookups.csv", header=T)
+Team_Tier_Goodies <- read.csv("Team_Tier_Lookups.csv", header=T)
 
 ################################################################################
 #------------------------------Data Aggregation--------------------------------#
@@ -34,6 +42,8 @@ for (i in 1:length(Country)){
         Agg_Data <- rbindlist(list(Agg_Data,df), use.names=TRUE, fill=TRUE)
     }
     Agg_Data$Date <- lubridate::dmy(Agg_Data$Date)
+    # add in the game week data
+    Agg_Data <- merge(Agg_Data, Game_Week_Goodies,by = c())
     write.csv(Agg_Data, paste0("Aggregated/Aggregated_Raw_Data_",
     Country[i],".csv"),row.names=F)
 }
