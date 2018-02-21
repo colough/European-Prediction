@@ -71,7 +71,7 @@ AverageIF <- function(a,b,c,d,e,f,g,h,k){
     for(i in 1:nrow(k))
         if(c[i] > Form_Length)
         g[i] <- h[i] - ((h[i] - d) / nrow(k[b == b[i] & c >= (c[i] - a) &
-        c < c[i] & (e == e[i] | f == e[i])))
+        c < c[i] & (e == e[i] | f == e[i]),]))
         else g[i] <- 0
     return(g)
 }
@@ -131,7 +131,7 @@ for (i in 1:length(Country)){
   df[Team_Result == "Draw",Points := 1L]
   df[,Home_Form := 0L]
   Form_Var <- quote(Points)
-  df[, Home_Form := Points_Form_Calc(Form_Length,Season,Game_Week_Index,
+  df[, Home_Form := Average_Form_Calc(Form_Length,Season,Game_Week_Index,
                       Team_Result, HomeTeam, AwayTeam, Form_Var, Home_Form, df)]
   df[,Away_Form := 0L]
   Form_Var <- quote(Points)
@@ -344,11 +344,15 @@ for (i in 1:length(Country)){
               df$Home_Poisson_1,df$Away_Poisson_5*df$Home_Poisson_2,
               df$Away_Poisson_5*df$Home_Poisson_3,df$Away_Poisson_5*
               df$Home_Poisson_4))]
-    df[, Home_Form_If_Win := 0L]
+    df[, Home_Form_If_Win := 0]
     df[, Home_Form_If_Win := AverageIF(Form_Length,Season,Game_Week_Index,
                         3, HomeTeam, AwayTeam, Home_Form_If_Win, Home_Form, df)]
-
-
+    df[, Home_Form_If_Draw := 0]
+    df[, Home_Form_If_Draw := AverageIF(Form_Length,Season,Game_Week_Index,
+                        1, HomeTeam, AwayTeam, Home_Form_If_Win, Home_Form, df)]
+    df[, Home_Form_If_Lose := 0]
+    df[, Home_Form_If_Lose := AverageIF(Form_Length,Season,Game_Week_Index,
+                        0, HomeTeam, AwayTeam, Home_Form_If_Win, Home_Form, df)]
 
 
 
