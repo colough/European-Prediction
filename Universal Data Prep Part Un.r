@@ -88,11 +88,11 @@ Country <- c("England", "France", "Spain", "Italy", "Germany")
 ################################################################################
 for (i in 1:length(Country)){
 
-  #file_location <- paste0("C:/Users/coloughlin/OneDrive/SONY_16M1/",
-  #"Football Predictions/",Country[i],"/Raw Data/Aggregated")
-
-  file_location <- paste0("C:/Users/ciana/OneDrive/SONY_16M1/",
+  file_location <- paste0("C:/Users/coloughlin/OneDrive/SONY_16M1/",
   "Football Predictions/",Country[i],"/Raw Data/Aggregated")
+
+  #file_location <- paste0("C:/Users/ciana/OneDrive/SONY_16M1/",
+  #"Football Predictions/",Country[i],"/Raw Data/Aggregated")
 
   setwd(file_location)
 
@@ -129,13 +129,21 @@ for (i in 1:length(Country)){
   df[Away_Win == 1,Team_Result := AwayTeam]
   df[,Points := 3L]
   df[Team_Result == "Draw",Points := 1L]
+  df[, Home_Points := 1L]
+  df[Home_Win == 1, Home_Points := 3]
+  df[Away_Win == 1, Home_Points := 0]
+  df[, Away_Points := 1L]
+  df[Away_Win == 1, Away_Points := 3]
+  df[Home_Win == 1, Away_Points := 0]
   df[,Home_Form := 0L]
   Form_Var <- quote(Points)
+  Form_Var1 <- quote(Home_Points)
+  Form_Var2 <- quote(Away_Points)
   df[, Home_Form := Average_Form_Calc(Form_Length,Season,Game_Week_Index,
                       Team_Result, HomeTeam, AwayTeam, Form_Var, Home_Form, df)]
   df[,Away_Form := 0L]
   Form_Var <- quote(Points)
-  df[, Away_Form := Points_Form_Calc(Form_Length,Season,Game_Week_Index,
+  df[, Away_Form := Average_Form_Calc(Form_Length,Season,Game_Week_Index,
                       Team_Result, AwayTeam, HomeTeam, Form_Var, Home_Form, df)]
   df$D_No_B_Odds_Home <- df$B365H*(df$B365D-1)/df$B365D
   df$D_No_B_Odds_Away <- df$B365A*(df$B365D-1)/df$B365D
@@ -239,12 +247,6 @@ for (i in 1:length(Country)){
   df[,Away_Conversion_Offset_Form := Average_Form_Calc(Form_Length,Season,Game_Week_Index,
                       Team_Result, AwayTeam, HomeTeam, Form_Var, Home_Form, df)]
   df$Goal_Difference <- df$FTHG - df$FTAG
-  df[, Home_Points := 1L]
-  df[Home_Win == 1, Home_Points := 3]
-  df[Away_Win == 1, Home_Points := 0]
-  df[, Away_Points := 1L]
-  df[Away_Win == 1, Away_Points := 3]
-  df[Home_Win == 1, Away_Points := 0]
   df[,Home_Attacking_Form := 0L]
   Form_Var1 <- quote(FTHG)
   Form_Var2 <- quote(FTAG)
@@ -349,11 +351,50 @@ for (i in 1:length(Country)){
                         3, HomeTeam, AwayTeam, Home_Form_If_Win, Home_Form, df)]
     df[, Home_Form_If_Draw := 0]
     df[, Home_Form_If_Draw := AverageIF(Form_Length,Season,Game_Week_Index,
-                        1, HomeTeam, AwayTeam, Home_Form_If_Win, Home_Form, df)]
+                        1, HomeTeam, AwayTeam, Home_Form_If_Draw, Home_Form, df)]
     df[, Home_Form_If_Lose := 0]
     df[, Home_Form_If_Lose := AverageIF(Form_Length,Season,Game_Week_Index,
-                        0, HomeTeam, AwayTeam, Home_Form_If_Win, Home_Form, df)]
-
-
+                        0, HomeTeam, AwayTeam, Home_Form_If_Lose, Home_Form, df)]
+    df[, Away_Form_If_Win := 0]
+    df[, Away_Form_If_Win := AverageIF(Form_Length,Season,Game_Week_Index,
+                        3, AwayTeam, HomeTeam, Home_Form_If_Win, Away_Form, df)]
+    df[, Away_Form_If_Draw := 0]
+    df[, Away_Form_If_Draw := AverageIF(Form_Length,Season,Game_Week_Index,
+                        1, AwayTeam, HomeTeam, Away_Form_If_Draw, Away_Form, df)]
+    df[, Away_Form_If_Lose := 0]
+    df[, Away_Form_If_Lose := AverageIF(Form_Length,Season,Game_Week_Index,
+                        0, AwayTeam, HomeTeam, Away_Form_If_Lose, Away_Form, df)]
+    df[, Home_Win_Regression_Likelihood := 0]
+    df$Home_Win_Regression_Likelihood <- ifelse(df$Game_Week_Index > 6,
+                            pnorm(df$Home_Form_If_Win,df$Home_Tier_Avg_Points,
+                                        df$Home_Tier_St_Dev, lower.tail=FALSE),0)
+    df$Home_Draw_Regression_Likelihood <- ifelse(df$Game_Week_Index > 6,
+                            pnorm(df$Home_Form_If_Draw,df$Home_Tier_Avg_Points,
+                                        df$Home_Tier_St_Dev, lower.tail=FALSE),0)
+    df$Home_Lose_Regression_Likelihood <- ifelse(df$Game_Week_Index > 6,
+                            pnorm(df$Home_Form_If_Lose,df$Home_Tier_Avg_Points,
+                                        df$Home_Tier_St_Dev, lower.tail=FALSE),0)
+    df$Away_Win_Regression_Likelihood <- ifelse(df$Game_Week_Index > 6,
+                            pnorm(df$Away_Form_If_Win,df$Away_Tier_Avg_Points,
+                                        df$Away_Tier_St_Dev, lower.tail=FALSE),0)
+    df$Away_Draw_Regression_Likelihood <- ifelse(df$Game_Week_Index > 6,
+                            pnorm(df$Away_Form_If_Draw,df$Away_Tier_Avg_Points,
+                                        df$Away_Tier_St_Dev, lower.tail=FALSE),0)
+    df$Away_Lose_Regression_Likelihood <- ifelse(df$Game_Week_Index > 6,
+                            pnorm(df$Away_Form_If_Lose,df$Away_Tier_Avg_Points,
+                                        df$Away_Tier_St_Dev, lower.tail=FALSE),0)
+    df$Regress_Home <- df$Home_Win_Regression_Likelihood*
+                                    df$Away_Lose_Regression_Likelihood
+    df$Regress_Draw <- df$Home_Draw_Regression_Likelihood*
+                                    df$Away_Draw_Regression_Likelihood
+    df$Regress_Away <- df$Home_Lose_Regression_Likelihood*
+                                    df$Away_Win_Regression_Likelihood
+# Wrap it up in a bow in the Europe folder:
+save_location <- paste0("C:/Users/coloughlin/OneDrive/SONY_16M1/"
+,"Football Predictions/Europe/Input Data")
+#save_location <- paste0("C:/Users/ciana/OneDrive/SONY_16M1/"
+#,"Football Predictions/Europe/Input Data")
+setwd(save_location)
+write.csv(df, paste0(Country[i]," Prepped Input.csv", row.names=F))
 
 }
