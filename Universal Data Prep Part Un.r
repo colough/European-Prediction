@@ -88,11 +88,11 @@ Country <- c("England", "France", "Spain", "Italy", "Germany")
 ################################################################################
 for (i in 1:length(Country)){
 
-  file_location <- paste0("C:/Users/coloughlin/OneDrive/SONY_16M1/",
-  "Football Predictions/",Country[i],"/Raw Data/Aggregated")
+#  file_location <- paste0("C:/Users/coloughlin/OneDrive/SONY_16M1/",
+#  "Football Predictions/",Country[i],"/Raw Data/Aggregated")
 
-  #file_location <- paste0("C:/Users/ciana/OneDrive/SONY_16M1/",
-  #"Football Predictions/",Country[i],"/Raw Data/Aggregated")
+  file_location <- paste0("C:/Users/ciana/OneDrive/SONY_16M1/",
+  "Football Predictions/",Country[i],"/Raw Data/Aggregated")
 
   setwd(file_location)
 
@@ -148,8 +148,8 @@ for (i in 1:length(Country)){
   df$D_No_B_Odds_Home <- df$B365H*(df$B365D-1)/df$B365D
   df$D_No_B_Odds_Away <- df$B365A*(df$B365D-1)/df$B365D
   df[, Winning_D_No_B_Odds := 1L]
-  df[,Home_Win == 1, Winning_D_No_B_Odds := D_No_B_Odds_Home]
-  df[,Away_Win == 1, Winning_D_No_B_Odds := D_No_B_Odds_Away]
+  #df[,Home_Win == 1, Winning_D_No_B_Odds := D_No_B_Odds_Home]
+  #df[,Away_Win == 1, Winning_D_No_B_Odds := D_No_B_Odds_Away]
   df[,Home_Shots_On_Target_Form := 0L]
   Form_Var1 <- quote(HST)
   Form_Var2 <- quote(AST)
@@ -390,11 +390,11 @@ for (i in 1:length(Country)){
     df$Regress_Away <- df$Home_Lose_Regression_Likelihood*
                                     df$Away_Win_Regression_Likelihood
 # Wrap it up in a bow in the Europe folder:
-save_location <- paste0("C:/Users/coloughlin/OneDrive/SONY_16M1/"
-,"Football Predictions/Europe/Input Data")
-#save_location <- paste0("C:/Users/ciana/OneDrive/SONY_16M1/"
+#save_location <- paste0("C:/Users/coloughlin/OneDrive/SONY_16M1/"
 #,"Football Predictions/Europe/Input Data")
+save_location <- paste0("C:/Users/ciana/OneDrive/SONY_16M1/"
+,"Football Predictions/Europe/Input Data")
 setwd(save_location)
-write.csv(df, paste0(Country[i]," Prepped Input.csv", row.names=F))
+write.csv(df, paste0(Country[i]," Prepped Input.csv"), row.names=F)
 
 }

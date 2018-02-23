@@ -3,6 +3,7 @@
 # Load packages:
 require(plyr)
 require(data.table)
+require(lubridate)
 
 # which project folder we want to work in
 setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Input Data")
@@ -14,7 +15,8 @@ Ger_df <- read.csv("Germany Prepped Input.csv", header = T)
 Spa_df <- read.csv("Spain Prepped Input.csv", header = T)
 Ita_df <- read.csv("Italy Prepped Input.csv", header = T)
 
-df <- rbindlist(list(Eng_df,Fra_df,Ger_df,Spa_df, Ita_df), use.names=T)
+Eng_df <- subset(Eng_df, select=-c(Referee))
+df <- rbindlist(list(Eng_df,Fra_df,Ger_df,Spa_df, Ita_df), use.names=T, fill=T)
 df <- as.data.frame(df)
 # so what we need to do is create a unique list of the teams involved in the
 # latest season
@@ -35,7 +37,7 @@ HData <- df[df$HomeTeam == Teams[i,1],]
 HData$Team_Favourite = HData$Home_Favourite
 HData$Opposition = HData$AwayTeam
 HData$Team_Form = HData$Home_Form
-HData$Opposition_Form = HData$Away_form
+HData$Opposition_Form = HData$Away_Form
 HData$Team_Shots_on_Target_Form = HData$Home_Shots_on_Target_Form
 HData$Opposition_Shots_on_Target_Form = HData$Away_Shots_on_Target_Form
 HData$Team_Shots_Conceded_Form = HData$Home_Shots_Conceded_Form
@@ -60,16 +62,16 @@ HData$Relative_Goals_Form = ((HData$Team_Goals_Scored_Form -
 HData$Team_Odds = HData$B365H
 HData$Draw_Odds = HData$B365D
 HData$Opposition_Odds = HData$B365A
-HData$Team_AH_Odds = HData$Ave_AH_Home_Odds
-HData$Team_Handicap = HData$Asian_Handicap
-HData$Opposition_AH_Odds = HData$Ave_AH_Away_Odds
+HData$Team_AH_Odds = HData$BbAvAHH
+HData$Team_Handicap = HData$BbAHh
+HData$Opposition_AH_Odds = HData$BbAvAHA
 HData$Team_Tier = HData$Home_Tier
 HData$Opposition_Tier = HData$Away_Tier
-HData$Team_Goal_Diff = HData$Full_Time_Home_Goals - HData$Full_Time_Away_Goals
+HData$Team_Goal_Diff = HData$FTHG - HData$FTAG
 HData$Home_Away = rep("Home",nrow(HData))
-HData$Poisson_Form_Team <- as.numeric(HData$Poisson_Home_Win)
-HData$Poisson_Form_Draw <- as.numeric(HData$Poisson_Draw)
-HData$Poisson_Form_Opposition <- as.numeric(HData$Poisson_Away_Win)
+HData$Poisson_Form_Team <- as.numeric(HData$Home_Poisson_Win)
+HData$Poisson_Form_Draw <- as.numeric(HData$Home_Poisson_Draw)
+HData$Poisson_Form_Opposition <- as.numeric(HData$Away_Poisson_Win)
 HData$Poisson_Result <- ifelse(HData$Poisson_Form_Team >
                                 HData$Poisson_Form_Opposition,1,
                                 ifelse(HData$Poisson_Form_Team <
@@ -87,7 +89,7 @@ AData <- df[df$AwayTeam == Teams[i,1],]
 #-Create the variables that we need - for all the Away matches
 AData$Team_Favourite = AData$Away_Favourite
 AData$Opposition = AData$HomeTeam
-AData$Team_Form = AData$Away_form
+AData$Team_Form = AData$Away_Form
 AData$Opposition_Form = AData$Home_Form
 AData$Team_Shots_on_Target_Form = AData$Away_Shots_on_Target_Form
 AData$Opposition_Shots_on_Target_Form = AData$Home_Shots_on_Target_Form
@@ -113,16 +115,16 @@ AData$Relative_Goals_Form = ((AData$Team_Goals_Scored_Form -
 AData$Team_Odds = AData$B365A
 AData$Draw_Odds = AData$B365D
 AData$Opposition_Odds = AData$B365H
-AData$Team_AH_Odds = AData$Ave_AH_Away_Odds
-AData$Team_Handicap = AData$Asian_Handicap*-1
-AData$Opposition_AH_Odds = AData$Ave_AH_Home_Odds
+AData$Team_AH_Odds = AData$BbAvAHA
+AData$Team_Handicap = AData$BbAHh*-1
+AData$Opposition_AH_Odds = AData$BbAvAHH
 AData$Team_Tier = AData$Away_Tier
 AData$Opposition_Tier = AData$Home_Tier
-AData$Team_Goal_Diff = AData$Full_Time_Away_Goals - AData$Full_Time_Home_Goals
+AData$Team_Goal_Diff = AData$FTAG - AData$FTHG
 AData$Home_Away = rep("Away",nrow(AData))
-AData$Poisson_Form_Team <- as.numeric(AData$Poisson_Away_Win)
-AData$Poisson_Form_Draw <- as.numeric(AData$Poisson_Draw)
-AData$Poisson_Form_Opposition <- as.numeric(AData$Poisson_Home_Win)
+AData$Poisson_Form_Team <- as.numeric(AData$Away_Poisson_Win)
+AData$Poisson_Form_Draw <- as.numeric(AData$Home_Poisson_Draw)
+AData$Poisson_Form_Opposition <- as.numeric(AData$Home_Poisson_Win)
 AData$Poisson_Result <- ifelse(AData$Poisson_Form_Team >
                                 AData$Poisson_Form_Opposition,1,
                                 ifelse(AData$Poisson_Form_Team <
@@ -152,8 +154,17 @@ TeamData$Match_Tier <- paste(TeamData$Home_Team_Tier, TeamData$Away_Team_Tier,
 # And even a bonus encore
 TeamData <- TeamData[order(TeamData$Div,TeamData$Season,
                           TeamData$Game_Week_Index),]
-
-
+# Annnd something else that I definitely didn't forget to pop in earlier
+TeamData$Month <- lubridate::month(TeamData$Date)
+setDT(TeamData)
+TeamData[, Calendar_Season := "Autumn"]
+TeamData[Month == 11, Calendar_Season := "Winter"]
+TeamData[Month == 12, Calendar_Season := "Winter"]
+TeamData[Month == 1, Calendar_Season := "Winter"]
+TeamData[Month == 2, Calendar_Season := "Spring"]
+TeamData[Month == 3, Calendar_Season := "Spring"]
+TeamData[Month == 4, Calendar_Season := "Spring"]
+TeamData[Month == 5, Calendar_Season := "Summer"]
 # kl
 # nope it'll never catch on I mean "cool"
 
