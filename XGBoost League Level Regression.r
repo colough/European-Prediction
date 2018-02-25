@@ -39,7 +39,7 @@ GWRange <- 38 #- 38 games in a season son
 setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
-df <- df[complete.cases(df),]
+#df <- df[complete.cases(df),]
 #--------------------------- Apply Seasonal Filters ---------------------------#
 # convert to numeric
 df$Season <- gsub(" ", "", df$Season)
@@ -78,7 +78,7 @@ StatResults <- data.frame()
 #------------------------ Loop through every gameweek -------------------------#
 dt <- df[Div %in% League[j]]
 
-	 for (i in 8:max(dt$Game_Week)){
+	 for (i in 8:max(dt$Game_Week_Index)){
 		 #i=17
 	#----------------- Define and transform model training set ------------------#
 		ModTrain1 <- dt[Season < Season_prediction,]
