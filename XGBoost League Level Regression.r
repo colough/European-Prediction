@@ -37,6 +37,7 @@ GWRange <- 38 #- 38 games in a season son
 # which project folder we want to work in
 #setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+# get a handful of data
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
 #df <- df[complete.cases(df),]
