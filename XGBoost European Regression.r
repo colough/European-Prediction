@@ -4,6 +4,7 @@
 #------------------------------Package Loading-------------------------------#
 ##############################################################################
 # You wouldn't go shopping without your wallet, don't forget your packages
+# this is an additional comment just to test v studio github integration
 require(pls)
 require(data.table)
 require(RSNNS)
