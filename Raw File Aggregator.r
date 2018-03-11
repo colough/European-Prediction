@@ -5,7 +5,6 @@
 ################################################################################
 # Did Frodo get to Mount Doom and then realise he'd forgotten the ring?
 # Course not, likewise remember your packages soldier
-# Will this comment make it on to git?
 
 require(data.table)
 require(lubridate)
