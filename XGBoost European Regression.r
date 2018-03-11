@@ -16,6 +16,7 @@ require(DiceKriging)
 require(parallelMap)
 require(mlrMBO)
 require(devtools)
+require(vtreat)
 
 ##############################################################################
 #-----------------------------Parameter Settings-----------------------------#
@@ -35,8 +36,8 @@ GWRange <- 38 #- 38 games in a season son
 ##############################################################################
 
 # which project folder we want to work in
-#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+#setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
 #df <- df[complete.cases(df),]
@@ -93,35 +94,40 @@ StatResults <- data.frame()
 	ModTrain$Season <- as.factor(ModTrain$Season)
 
 	ModTrain <- as.data.frame(ModTrain)
-	# Define the variables to be used and then create numeric dummies
-	variables <- c('Season','Calendar_Season','Match_Tier','Home_Away',
-	'Poisson_Result','Regress_Result','Relative_Form',
-	'Team_Handicap','Relative_Odds')
-	TDat1 <- ModTrain[,variables]
-	TDat2 <- dummyVars("~.",data=TDat1)
-	TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
-	#- now we need to normalize the training data
-	TrainDatnames <- colnames(TrainDat)
-	#TrainDat <- normalizeData(TrainDat, type="0_1")
-	colnames(TrainDat) <- TrainDatnames
-
-	# same for the Dependent variable
+	TDat1 <- ModTrain
 	Dependent <- data.frame(ModTrain$Team_Goal_Diff)
-  	# for this package it wants a single column with the the three groups
-		# to classify
- 	TrainDat <- cbind(TrainDat, Dependent)
-
+	TDat1 <- cbind(TDat1, Dependent)
+	colnames(TDat1)[ncol(TDat1)] <- "Dependent"
+	cfe <- vtreat::mkCrossFrameNExperiment(TDat1, c('Team_Favourite',
+	'Opposition', 'Team_Form', 'Opposition_Form', 'Team_Shots_Conceded_Form'
+	, 'Opposition_Shots_Conceded_Form', 'Team_Goals_Scored_Form',
+	'Opposition_Goals_Scored_Form', 'Team_Goals_Conceded_Form',
+	'Opposition_Goals_Conceded_Form', 'Team_Odds', 'Draw_Odds',
+	'Opposition_Odds','Team_AH_Odds', 'Team_Handicap', 'Opposition_AH_Odds',
+	'Home_Away', 'Poisson_Form_Team', 'Poisson_Form_Draw',
+	'Poisson_Form_Opposition', 'Poisson_Result', 'Regress_Mean_Team',
+	'Regress_Mean_Draw', 'Regress_Mean_Opposition','Regress_Result', 'Team',
+	'Match_Tier', 'Calendar_Season', 'Relative_Form', 'Relative_Odds'),
+	"Dependent")
+	plan <- cfe$treatments
+	TrainDat <- cfe$crossFrame
+	codes <- c('lev', 'catN', 'clean', 'isBAD')
+	TrainDat <- TrainDat[,grep(paste(codes, collapse = "|"),
+												colnames(TrainDat), value=TRUE)]
+	# join the Dependent variable
+	Dependent <- data.frame(ModTrain$Team_Goal_Diff)
+	TrainDat <- cbind(TrainDat, Dependent)
 	# ok so to start modelling we have to declare a so called 'task', with the
 	# dependent and independent variables called out
 	TrainDat <- as.data.frame(TrainDat)
 	trainTask <- makeRegrTask(data = TrainDat,
 							target = "ModTrain.Team_Goal_Diff")
 
-  	Agg_Results <- data.frame()
+	Agg_Results <- data.frame()
 #---------------- Gradient Boosting (Create prediction data) -----------------#
 	# The below line looks like a stupid mistake on my part but actually it's a
 	# deliberate mistake to counter a stupid mistake on R's part
-	PredData <- df[Game_Week_Index == i,]
+	PredData <- df[Season == Season_prediction & Game_Week_Index == i,]
 
 	# easier for the model here each time
 	PredData$Relative_Form <- PredData$Team_Form -
@@ -131,23 +137,7 @@ StatResults <- data.frame()
 	# Turn Seasons back into a factor so we can use it in the model
 	PredData$Season <- as.factor(PredData$Season)
 	PredData <- as.data.frame(PredData)
-
-
-	PDat1 <- PredData[,variables]
-	PDat2 <- dummyVars("~.",data=PDat1)
-	PredDat <- data.frame(predict(PDat2, newdata = PDat1))
-	#- now we need to normalize the prediction data
-	PredDatnames <- colnames(PredDat)
-	#PredDat <- normalizeData(PredDat, type="0_1")
-	colnames(PredDat) <- PredDatnames
-
-	# Now I have to dynamically filter to make up for that R mistake
-	# Just to be clear: R's mistake. Definitely not mine
-	Season_Col <- paste0("Season.",Season_prediction)
-	Cal_Season_Col <- as.character(unique(df[Season == Season_prediction &
-						Game_Week_Index == i,Calendar_Season]))
-	PredDat <- PredDat[PredDat[,eval(Season_Col)] == 1, ]
-
+	PredDat <- vtreat::prepare(plan, PredData, pruneSig = NULL)
 	PredDat <- as.matrix(PredDat)
 	PredDat <- xgboost::xgb.DMatrix(PredDat)
 
@@ -156,8 +146,8 @@ StatResults <- data.frame()
 
 	# When doing Hyperparameter tuning we need to save the model in a local
 	# folder so we temporarily move to the below
-	#setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
-	setwd ("C:/Users/ciana/Documents/Football Predictions/Europe")
+	setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
+	#setwd ("C:/Users/ciana/Documents/Football Predictions/Europe")
 
 	parallelStartSocket(3)
 	ptm <- proc.time()
@@ -184,8 +174,8 @@ StatResults <- data.frame()
 	parallelStop()
 	proc.time()-ptm
 	# Bring it back
-	#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-	setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+	setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+	#setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 
 #---------------- Gradient Boosting (select best parameters) ------------------#
 	# this is a little messy but we summarize the optimal fits
@@ -369,7 +359,9 @@ colnames(AggP) <- c("Team", "Season", "Opposition", "Game.Week.Index",
 										"Prediction", "Pos C-Value", "Neg C-Value", "Max Accuracy")
 # save the results
 	PredResults <- rbindlist(list(PredResults,AggP))
+	print(i)
 }
 
 
-write.csv(PredResults, paste0("Prediction Regression",Season_prediction,".csv"))
+write.csv(PredResults, paste0("Prediction Regression vtreat",Season_prediction,
+".csv"))

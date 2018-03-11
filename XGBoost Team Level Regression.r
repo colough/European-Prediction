@@ -16,6 +16,7 @@ require(DiceKriging)
 require(parallelMap)
 require(mlrMBO)
 require(devtools)
+require(vtreat)
 
 ##############################################################################
 #-----------------------------Parameter Settings-----------------------------#
@@ -36,7 +37,7 @@ GWRange <- 38 #- 38 games in a season son
 
 # which project folder we want to work in
 #setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+#setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
 #df <- df[complete.cases(df),]
@@ -69,9 +70,9 @@ df <- df[df$AwayTeam %in% Teams$HomeTeam,]
 PredResults <- data.frame()
 StatResults <- data.frame()
 
-##############################################################################
-#-------------------------------Model Building-------------------------------#
-##############################################################################
+################################################################################
+#--------------------------------Model Building--------------------------------#
+################################################################################
 
 # ok so this is the meat of the action where for every league we...
 for(j in 1:length(League)){
@@ -83,10 +84,10 @@ dt$Team <- as.character(dt$Team)
 
 		 for (i in 8:max(dt$Game_Week_Index)){
 			 #i=17
-		#----------------- Define and transform model training set ------------------#
+#------------------ Define and transform model training set -------------------#
 			ModTrain1 <- dt[Season < Season_prediction & Team == League_Teams[k],]
 			ModTrain2 <- dt[Season == Season_prediction & Team == League_Teams[k]
-																												& Game_Week_Index < i,]
+														& Game_Week_Index < i,]
 			ModTrain <- rbindlist(list(ModTrain1,ModTrain2))
 			ModTrain <- ModTrain[Game_Week_Index >= 7,]
 			# we'll create a couple of extra variables to make things a little
@@ -104,32 +105,36 @@ dt$Team <- as.character(dt$Team)
 			'Poisson_Result','Regress_Result','Relative_Form',
 			'Team_Handicap','Relative_Odds')
 			TDat1 <- ModTrain[,variables]
-			TDat2 <- dummyVars("~.",data=TDat1)
-			TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
-			#- now we need to normalize the training data
-			TrainDatnames <- colnames(TrainDat)
-			#TrainDat <- normalizeData(TrainDat, type="0_1")
-			colnames(TrainDat) <- TrainDatnames
-
-			# same for the Dependent variable
 			Dependent <- data.frame(ModTrain$Team_Goal_Diff)
-		  	# for this package it wants a single column with the the three groups
-				# to classify
+			TDat1 <- cbind(TDat1, Dependent)
+			colnames(TDat1)[10] <- "Dependent"
+			cfe <- vtreat::mkCrossFrameNExperiment(TDat1, c('Season',
+			'Calendar_Season','Match_Tier','Home_Away','Poisson_Result',
+			'Regress_Result','Relative_Form','Team_Handicap','Relative_Odds'),
+			"Dependent")
+			vtariables <- c('Season_catN','Calendar_Season_catN','Match_Tier_catN'
+			,'Home_Away_lev_x.Away','Home_Away_lev_x.Home','Poisson_Result_clean',
+			'Regress_Result_clean','Relative_Form_clean','Team_Handicap_clean',
+			'Relative_Odds_clean')
+			plan <- cfe$treatments
+			TrainDat <- cfe$crossFrame
+			TrainDat <- TrainDat[,vtariables]
+			# join the Dependent variable
+			Dependent <- data.frame(ModTrain$Team_Goal_Diff)
 		 	TrainDat <- cbind(TrainDat, Dependent)
-
-			# ok so to start modelling we have to declare a so called 'task', with the
-			# dependent and independent variables called out
+			# ok so to start modelling we have to declare a so called 'task',
+			# with the dependent and independent variables called out
 			TrainDat <- as.data.frame(TrainDat)
 			trainTask <- makeRegrTask(data = TrainDat,
 									target = "ModTrain.Team_Goal_Diff")
 
 		  	Agg_Results <- data.frame()
-		#---------------- Gradient Boosting (Create prediction data) -----------------#
-			# The below line looks like a stupid mistake on my part but actually it's a
-			# deliberate mistake to counter a stupid mistake on R's part
-			PredData <- dt[Game_Week_Index == i,]
+#----------------- Gradient Boosting (Create prediction data) -----------------#
+			# Filter to the data that we actually want to predict
+			PredData <- dt[Season == Season_prediction & Team == League_Teams[k]
+														& Game_Week_Index == i,]
 
-			# easier for the model here each time
+			# add in some juicy details
 			PredData$Relative_Form <- PredData$Team_Form -
 										PredData$Opposition_Form
 			PredData$Relative_Odds <- PredData$Opposition_Odds -
@@ -138,38 +143,21 @@ dt$Team <- as.character(dt$Team)
 			PredData$Season <- as.factor(PredData$Season)
 			PredData <- as.data.frame(PredData)
 
-			# Add Team on to variables list so that we can filter for the correct team
-			variables <- append("Team", variables)
-			PDat1 <- PredData[,variables]
-			PDat2 <- dummyVars("~.",data=PDat1)
-			PredDat <- data.frame(predict(PDat2, newdata = PDat1))
-			#- now we need to normalize the prediction data
-			PredDatnames <- colnames(PredDat)
-			#PredDat <- normalizeData(PredDat, type="0_1")
-			colnames(PredDat) <- PredDatnames
-
-			# Now I have to dynamically filter to make up for that R mistake
-			# Just to be clear: R's mistake. Definitely not mine
-			Season_Col <- paste0("Season.",Season_prediction)
-			Cal_Season_Col <- as.character(unique(dt[Season == Season_prediction &
-								Game_Week_Index == i,Calendar_Season]))
-			Team_Col <- paste0("Team",League_Teams[k])
-			Team_Col <- gsub(" ", ".", Team_Col)
-			Team_Col <- gsub("'", ".", Team_Col)
-			PredDat <- PredDat[PredDat[,eval(Season_Col)] == 1 &
-																		PredDat[,eval(Team_Col)] == 1, ]
 			# not every team play in every game week so if there's nothing to predict
 			# then there's no point building a model, so in that case we ignore
 			# everything below and move on to the next week
 			if(nrow(PredDat) > 0){
+			# apply the same treatments to the pred data as has been done to the
+			# training data
+			PredDat <- vtreat::prepare(plan, PredData, pruneSig = NULL)
 			PredDat <- as.matrix(PredDat)
 			PredDat <- xgboost::xgb.DMatrix(PredDat)
 
 
 #----------------- Gradient Boosting (Hyperparameter Tuning) ------------------#
 
-			# When doing Hyperparameter tuning we need to save the model in a local
-			# folder so we temporarily move to the below
+			# When doing Hyperparameter tuning we need to save the model in a
+			# local folder so we temporarily move to the below
 			#setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
 			setwd ("C:/Users/ciana/Documents/Football Predictions/Europe")
 
@@ -183,18 +171,18 @@ dt$Team <- as.character(dt$Team)
 			makeNumericParam("subsample", lower = 0.1, upper = 0.8),
 			makeNumericParam("min_child_weight", lower = 0.5, upper = 8),
 			makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8),
-			makeDiscreteParam(id = "objective", values = c("reg:linear"), tunable = F)
-			)
+			makeDiscreteParam(id = "objective", values = c("reg:linear"),
+			tunable = F))
 			ctrl = makeTuneControlMBO()
 			inner = makeResampleDesc("Subsample", iters = 3)
 			# Tuning in Inner resampling loop
-			lrn = makeTuneWrapper("regr.xgboost", resampling = inner, par.set = ps,
-										control = ctrl, show.info = FALSE)
+			lrn = makeTuneWrapper("regr.xgboost", resampling = inner, par.set
+										= ps,control = ctrl, show.info = FALSE)
 
 			# tuning in Outer resampling loop
 			outer = makeResampleDesc("CV", iters = 3)
-			r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult,
-																show.info = FALSE)
+			r = resample(lrn, trainTask, resampling = outer, extract
+											= getTuneResult,show.info = FALSE)
 			parallelStop()
 			proc.time()-ptm
 			# Bring it back
@@ -214,9 +202,11 @@ dt$Team <- as.character(dt$Team)
 			    min_child_weight <- a$x.min_child_weight
 			    colsample_bytree <- a$x.colsample_bytree
 			    objective <- "reg:linear"
-				Classifier_Results <- as.data.frame(cbind(nrounds, max_depth, lambda,
-				eta, Score, subsample, min_child_weight, colsample_bytree, objective))
-				Agg_Results <- rbindlist(list(Agg_Results,Classifier_Results), fill=T)
+				Classifier_Results <- as.data.frame(cbind(nrounds, max_depth,
+				lambda,eta, Score, subsample, min_child_weight, colsample_bytree
+				, objective))
+				Agg_Results <- rbindlist(list(Agg_Results,Classifier_Results),
+				fill=T)
 				}
 
 			# tidy up any messy bits
@@ -295,18 +285,19 @@ dt$Team <- as.character(dt$Team)
 			for (d in 1:nrow(CValues)){
 
 				for(f in 2:ncol(Resers)){
-					# for each principle component we classify the predicted values in to what
-					# the result would be
-					ResP1[,f] <- ifelse(Resers[,f] > CValues[d,1],1,ifelse(Resers[,f] <
-																														-1*CValues[d,2], -1, 0))
+					# for each principle component we classify the predicted
+					# values in to what the result would be
+					ResP1[,f] <- ifelse(Resers[,f] > CValues[d,1],1,
+									ifelse(Resers[,f] < -1*CValues[d,2], -1, 0))
 					}
 				# Sust houses the count of correct predictions
-				# first we set it to be a series of 1's so it's the right size, as above
+				# first we set it to be a series of 1's so it's the right size,
+				# as above
 				SuSt <- rep(1,a)
 				SuSt <- as.data.frame(SuSt)
 				for (k in 2:ncol(ResP1)){
-					# but now what we want to do is create a "truth" matrix where 1 indicates
-					# a correct prediction
+					# but now what we want to do is create a "truth" matrix where
+					# 1 indicates a correct prediction
 					SuSt[,k-1] <- ifelse(ResP1[,k] == ResP1[,1],1,0)
 					}
 				TempSt <- as.data.frame(1)
@@ -366,24 +357,24 @@ dt$Team <- as.character(dt$Team)
 		PredData <- as.data.table(PredData)
 
 		div1 <- dt[Season == Season_prediction & Game_Week_Index == i
-																								& Team == League_Teams[k], Div]
+												& Team == League_Teams[k], Div]
 		div1 <- as.data.frame(div1)
 		p1 <- dt[Season == Season_prediction & Game_Week_Index == i
-																								& Team == League_Teams[k],Team]
+												& Team == League_Teams[k],Team]
 		p1 <- as.data.frame(p1)
 		p2 <- rep(Season_prediction,nrow(PredDat))
 		p2 <- as.data.frame(p2)
 		p3 <- dt[Season == Season_prediction & Game_Week_Index == i
-																					& Team == League_Teams[k],Opposition]
+										& Team == League_Teams[k],Opposition]
 		p3 <- as.data.frame(p3)
 		p4 <- dt[Season == Season_prediction & Game_Week_Index == i
-																		& Team == League_Teams[k], Game_Week_Index]
+									& Team == League_Teams[k], Game_Week_Index]
 		p4 <- as.data.frame(p4)
 		p5a <- predict(Pmod, PredDat)
 		p5a <- as.data.frame(p5a)
 		AggP <- cbind(p1,p2,p3,p4,p5a,ToStp[,2],ToStp[,3],ToStp[,4]) # stitched together
 		colnames(AggP) <- c("Team", "Season", "Opposition", "Game.Week.Index",
-												"Prediction", "Pos C-Value", "Neg C-Value", "Max Accuracy")
+					"Prediction", "Pos C-Value", "Neg C-Value", "Max Accuracy")
 		# save the results
 			PredResults <- rbindlist(list(PredResults,AggP))
 		# let a worrying parent know what progress their child is making
