@@ -363,4 +363,5 @@ colnames(AggP) <- c("Team", "Season", "Opposition", "Game.Week.Index",
 }
 
 
-write.csv(PredResults, paste0("Prediction Regression",Season_prediction,".csv"))
+write.csv(PredResults, paste0("Prediction Regression vtreat",Season_prediction,
+".csv"))
