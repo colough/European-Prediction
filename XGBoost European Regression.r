@@ -37,8 +37,8 @@ GWRange <- 38 #- 38 games in a season son
 ##############################################################################
 
 # which project folder we want to work in
-setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-#setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
 #df <- df[complete.cases(df),]
@@ -99,17 +99,9 @@ StatResults <- data.frame()
 	Dependent <- data.frame(ModTrain$Team_Goal_Diff)
 	TDat1 <- cbind(TDat1, Dependent)
 	colnames(TDat1)[ncol(TDat1)] <- "Dependent"
-	cfe <- vtreat::mkCrossFrameNExperiment(TDat1, c('Team_Favourite',
-	'Opposition', 'Team_Form', 'Opposition_Form', 'Team_Shots_Conceded_Form'
-	, 'Opposition_Shots_Conceded_Form', 'Team_Goals_Scored_Form',
-	'Opposition_Goals_Scored_Form', 'Team_Goals_Conceded_Form',
-	'Opposition_Goals_Conceded_Form', 'Team_Odds', 'Draw_Odds',
-	'Opposition_Odds','Team_AH_Odds', 'Team_Handicap', 'Opposition_AH_Odds',
-	'Home_Away', 'Poisson_Form_Team', 'Poisson_Form_Draw',
-	'Poisson_Form_Opposition', 'Poisson_Result', 'Regress_Mean_Team',
-	'Regress_Mean_Draw', 'Regress_Mean_Opposition','Regress_Result', 'Team',
-	'Match_Tier', 'Calendar_Season', 'Relative_Form', 'Relative_Odds'),
-	"Dependent")
+	cfe <- vtreat::mkCrossFrameNExperiment(TDat1, c('Season','Calendar_Season',
+    'Match_Tier','Home_Away','Poisson_Result','Regress_Result','Relative_Form',
+    'Team_Handicap','Relative_Odds'),"Dependent")
 	plan <- cfe$treatments
 	TrainDat <- cfe$crossFrame
 	codes <- c('lev', 'catN', 'clean', 'isBAD')
@@ -147,8 +139,8 @@ StatResults <- data.frame()
 
 	# When doing Hyperparameter tuning we need to save the model in a local
 	# folder so we temporarily move to the below
-	setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
-	#setwd ("C:/Users/ciana/Documents/Football Predictions/Europe")
+	#setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
+	setwd ("C:/Users/ciana/Documents/Football Predictions/Europe")
 
 	parallelStartSocket(3)
 	ptm <- proc.time()
@@ -175,8 +167,8 @@ StatResults <- data.frame()
 	parallelStop()
 	proc.time()-ptm
 	# Bring it back
-	setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-	#setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+	#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+	setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 
 #---------------- Gradient Boosting (select best parameters) ------------------#
 	# this is a little messy but we summarize the optimal fits
@@ -356,13 +348,24 @@ p4 <- as.data.frame(p4)
 p5a <- predict(Pmod, PredDat)
 p5a <- as.data.frame(p5a)
 AggP <- cbind(p1,p2,p3,p4,p5a,ToStp[,2],ToStp[,3],ToStp[,4]) # stitched together
-colnames(AggP) <- c("Team", "Season", "Opposition", "Game.Week.Index",
-										"Prediction", "Pos C-Value", "Neg C-Value", "Max Accuracy")
+colnames(AggP) <- c("Team", "Season", "Opposition", "Game_Week_Index",
+					"Euro_Prediction", "Euro_Pos_C_Value", "Euro_Neg_C_Value",
+                    "Euro_Max_Accuracy")
 # save the results
 	PredResults <- rbindlist(list(PredResults,AggP))
 	print(i)
 }
 
-
-write.csv(PredResults, paste0("Prediction Regression vtreat",Season_prediction,
-".csv"))
+#----------------- Export and merge to the calc data ------------------#
+# read in the existing calc data
+setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
+    "Europe/Output Data"))
+Calc_df <- read.csv("Europe Calc Data.csv", header = TRUE)
+# merge our results
+Calc_df <- merge(Calc_df, PredResults, by = c('Season', 'Team', 'Opposition',
+                            'Game_Week_Index'), all.x=T)
+# Calculate actual vs predicted metrics
+Calc_df <- setDT(Calc_df)
+Calc_df[, Euro_Pred_Outcome := 0]
+Calc_df[Euro_Prediction >= Euro_Pos_C_Value, Euro_Pred_Outcome := 1]
+Calc_df[Euro_Prediction <= Euro_Neg_C_Value*-1, Euro_Pred_Outcome := -1]

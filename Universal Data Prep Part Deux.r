@@ -166,11 +166,11 @@ TeamData[Month == 3, Calendar_Season := "Spring"]
 TeamData[Month == 4, Calendar_Season := "Spring"]
 TeamData[Month == 5, Calendar_Season := "Summer"]
 # kl
-# nope it'll never catch on I mean "cool"
+# nope, it'll never catch on I mean "cool"
 
 write.csv(TeamData, "C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data/Europe Prepped Output.csv", row.names=F)
 
-# For the calc sheet, export a few metrics
+#----------------------------- Calc Sheet Export -----------------------------#
 TeamData <- as.data.table(TeamData)
 TeamData$Season <- gsub(" ", "", TeamData$Season)
 TeamData$Season <- as.numeric(TeamData$Season)
