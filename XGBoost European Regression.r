@@ -361,11 +361,20 @@ colnames(AggP) <- c("Team", "Season", "Opposition", "Game_Week_Index",
 setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
     "Europe/Output Data"))
 Calc_df <- read.csv("Europe Calc Data.csv", header = TRUE)
+Calc_df <- setDT(Calc_df)
 # merge our results
 Calc_df <- merge(Calc_df, PredResults, by = c('Season', 'Team', 'Opposition',
                             'Game_Week_Index'), all.x=T)
 # Calculate actual vs predicted metrics
-Calc_df <- setDT(Calc_df)
 Calc_df[, Euro_Pred_Outcome := 0]
 Calc_df[Euro_Prediction >= Euro_Pos_C_Value, Euro_Pred_Outcome := 1]
 Calc_df[Euro_Prediction <= Euro_Neg_C_Value*-1, Euro_Pred_Outcome := -1]
+Calc_df[, Euro_Same := 0]
+Calc_df[Actual_Outcome == Euro_Pred_Outcome, Euro_Same := 1]
+Calc_df[, Euro_Pred_Winning_Odds := 0]
+Calc_df[Euro_Pred_Outcome == -1, Euro_Pred_Winning_Odds := Opposition_Odds]
+Calc_df[Euro_Pred_Outcome == 1, Euro_Pred_Winning_Odds := Team_Odds]
+Calc_df[Euro_Pred_Outcome == 0, Euro_Pred_Winning_Odds := Draw_Odds]
+
+# Send it out to play in the traffic
+write.csv(Calc_df, "Europe Calc Data Output.csv", row.names=FALSE)

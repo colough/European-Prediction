@@ -368,12 +368,33 @@ dt <- df[Div %in% League[j]]
 	p5a <- predict(Pmod, PredDat)
 	p5a <- as.data.frame(p5a)
 	AggP <- cbind(p1,p2,p3,p4,p5a,ToStp[,2],ToStp[,3],ToStp[,4]) # stitched together
-	colnames(AggP) <- c("Team", "Season", "Opposition", "Game.Week.Index",
-											"Prediction", "Pos C-Value", "Neg C-Value", "Max Accuracy")
+	colnames(AggP) <- c("Team", "Season", "Opposition", "Game_Week_Index",
+	"League_Prediction", "League_Pos_C_Value", "League_Neg_C_Value",
+    "League_Max Accuracy")
 	# save the results
 		PredResults <- rbindlist(list(PredResults,AggP))
 	}
 }
 
-write.csv(PredResults, paste0("Prediction Regression by League",
-													Season_prediction,".csv"))
+#----------------- Export and merge to the calc data ------------------#
+# read in the existing calc data
+setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
+    "Europe/Output Data"))
+Calc_df <- read.csv("Europe Calc Data.csv", header = TRUE)
+Calc_df <- setDT(Calc_df)
+# merge our results
+Calc_df <- merge(Calc_df, PredResults, by = c('Season', 'Team', 'Opposition',
+                            'Game_Week_Index'), all.x = T)
+# Calculate actual vs predicted metrics
+Calc_df[, League_Pred_Outcome := 0]
+Calc_df[Leagie_Prediction >= Leagie_Pos_C_Value, League_Pred_Outcome := 1]
+Calc_df[Leagie_Prediction <= Leagie_Neg_C_Value * -1, League_Pred_Outcome := -1]
+Calc_df[, Leagie_Same := 0]
+Calc_df[Actual_Outcome == Leagie_Pred_Outcome, Leagie_Same := 1]
+Calc_df[, Leagie_Pred_Winning_Odds := 0]
+Calc_df[Leagie_Pred_Outcome == -1, Leagie_Pred_Winning_Odds := Opposition_Odds]
+Calc_df[Leagie_Pred_Outcome == 1, Leagie_Pred_Winning_Odds := Team_Odds]
+Calc_df[Leagie_Pred_Outcome == 0, Leagie_Pred_Winning_Odds := Draw_Odds]
+
+# Send it out to play in the traffic
+write.csv(Calc_df, "Europe Calc Data Output.csv", row.names = FALSE)

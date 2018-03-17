@@ -177,5 +177,9 @@ TeamData$Season <- as.numeric(TeamData$Season)
 Calc_Data <- TeamData[Season >= 20132014 & Game_Week_Index > 7,]
 Calc_Data <- Calc_Data[,c("Season","Team","Opposition","Game_Week_Index",
 "Team_Goal_Diff","Team_Odds","Opposition_Odds","Draw_Odds")]
-
+# Create the actual result
+Calc_Data <- setDT(Calc_Data)
+Calc_Data[, Actual_Outcome := 0]
+Calc_Data[Team_Goal_Diff > 0, Actual_Outcome := 1]
+Calc_Data[Team_Goal_Diff < 0, Actual_Outcome := -1]
 write.csv(Calc_Data, "C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data/Europe Calc Data.csv", row.names=F)
