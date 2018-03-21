@@ -356,7 +356,7 @@ colnames(AggP) <- c("Team", "Season", "Opposition", "Game_Week_Index",
 	print(i)
 }
 
-#----------------- Export and merge to the calc data ------------------#
+#--------------------- Export and merge to the calc data ---------------------#
 # read in the existing calc data
 setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
     "Europe/Output Data"))
@@ -375,6 +375,33 @@ Calc_df[, Euro_Pred_Winning_Odds := 0]
 Calc_df[Euro_Pred_Outcome == -1, Euro_Pred_Winning_Odds := Opposition_Odds]
 Calc_df[Euro_Pred_Outcome == 1, Euro_Pred_Winning_Odds := Team_Odds]
 Calc_df[Euro_Pred_Outcome == 0, Euro_Pred_Winning_Odds := Draw_Odds]
+Calc_df[, Bets := 200]
+Calc_df[, Euro_Winnings := Bets*Euro_Pred_Winning_Odds*Euro_Same]
 
 # Send it out to play in the traffic
-write.csv(Calc_df, "Europe Calc Data Output.csv", row.names=FALSE)
+write.csv(Calc_df, "Europe Calc Data Output.csv", row.names = FALSE)
+
+#--------------------------- Summary of results Log --------------------------#
+# A Brief History of Time:
+Model_time <- paste0('The model was run at ',now())
+# Overall accuracy for the season:
+Accuracy <- setDT(Calc_df[Season == Season_prediction, j = list(Cor_Pred =
+  mean(Euro_Same))])
+Acc_Statement <- paste0('The accuracy is ',Accuracy)
+# type of model run
+Model_Type <- 'This is a: European Regression XGBoost'
+# Any Notes
+Notes <- 'done with vtreat, always predicting opposition'
+# Straight Profitability
+Profit <- setDT(Calc_df[Season == Season_prediction, j = list(
+sum(Euro_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
+sum(Bets))])
+Profit_Statement <- paste0('Profits are ', Profit)
+# Create a summary
+Summary <- c(Model_time, Acc_Statement, Model_Type, Notes, Profit_Statement)
+Summary <- as.data.frame(Summary)
+# Read in log
+Results_Log <- read.csv('Results Log.csv')
+# add on to the end
+Results_Log <- rbind(Results_Log, Summary)
+# fin
