@@ -1,10 +1,15 @@
 #-------------- This file is intended to prep all countries data -------------#
 
-# Load packages:
+###############################################################################
+#-------------------------------Package Loading-------------------------------#
+###############################################################################
 require(plyr)
 require(data.table)
 require(lubridate)
 
+###############################################################################
+#--------------------------------Data Loading---------------------------------#
+###############################################################################    
 # which project folder we want to work in
 setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Input Data")
 #setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Input Data")

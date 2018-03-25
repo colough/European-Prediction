@@ -1,8 +1,8 @@
-#--------- this file aggregates the raw season files for each country ---------#
+#--------- this file aggregates the raw season files for each country --------#
 
-################################################################################
-#-------------------------------Package Loading--------------------------------#
-################################################################################
+###############################################################################
+#-------------------------------Package Loading-------------------------------#
+###############################################################################
 # Did Frodo get to Mount Doom and then realise he'd forgotten the ring?
 # Course not, likewise remember your packages soldier
 
