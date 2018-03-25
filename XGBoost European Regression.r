@@ -19,9 +19,9 @@ require(mlrMBO)
 require(devtools)
 require(vtreat)
 
-##############################################################################
-#-----------------------------Parameter Settings-----------------------------#
-##############################################################################
+###############################################################################
+#-----------------------------Parameter Settings------------------------------#
+###############################################################################
 # what Season are we predicting? (Enter numeric)
 Season_prediction <- 20152016
 # Are we doing a single market or Europe wide?
@@ -42,16 +42,16 @@ setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Dat
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
 #df <- df[complete.cases(df),]
-#--------------------------- Apply Seasonal Filters ---------------------------#
+#--------------------------- Apply Seasonal Filters --------------------------#
 # convert to numeric
 df$Season <- gsub(" ", "", df$Season)
 df$Season <- as.numeric(df$Season)
 df <- df[Season <= Season_prediction,]
 
-#---------------------------- Apply Market Filters ----------------------------#
+#---------------------------- Apply Market Filters ---------------------------#
 df <- df[Div %in% League]
 
-#----------------------------- Apply Team Filters -----------------------------#
+#----------------------------- Apply Team Filters ----------------------------#
 # Only want to build models for teams who are in current season
 Teams <- unique(df[Season == max(df$Season),HomeTeam])
 # Can only take teams whose first season isn't the one currently predicting:
@@ -71,16 +71,16 @@ df <- df[df$AwayTeam %in% Teams$HomeTeam,]
 PredResults <- data.frame()
 StatResults <- data.frame()
 
-##############################################################################
-#-------------------------------Model Building-------------------------------#
-##############################################################################
+###############################################################################
+#-------------------------------Model Building--------------------------------#
+###############################################################################
 
 # ok so this is the meat of the action where for every team we...
 # for(j in 1: 2){
-#------------------------ Loop through every gameweek -------------------------#
+#------------------------ Loop through every gameweek ------------------------#
  for (i in 8:GWRange){
 	 #i=17
-#------------------ Define and transform model training set -------------------#
+#------------------ Define and transform model training set ------------------#
 	ModTrain1 <- df[Season < Season_prediction,]
 	ModTrain2 <- df[Season == Season_prediction & Game_Week_Index < i,]
 	ModTrain <- rbindlist(list(ModTrain1,ModTrain2))
@@ -135,7 +135,7 @@ StatResults <- data.frame()
 	PredDat <- xgboost::xgb.DMatrix(PredDat)
 
 
-#----------------- Gradient Boosting (Hyperparameter Tuning) ------------------#
+#----------------- Gradient Boosting (Hyperparameter Tuning) -----------------#
 
 	# When doing Hyperparameter tuning we need to save the model in a local
 	# folder so we temporarily move to the below
@@ -170,7 +170,7 @@ StatResults <- data.frame()
 	#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 	setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 
-#---------------- Gradient Boosting (select best parameters) ------------------#
+#---------------- Gradient Boosting (select best parameters) -----------------#
 	# this is a little messy but we summarize the optimal fits
 	for (p in 1:length(r$extract)){
 	    a <- unlist(r$extract[[p]])
@@ -197,7 +197,7 @@ StatResults <- data.frame()
 	# Transform Traindat back to being just numeric for the actual model build
 	TrainDat <- TrainDat[,-ncol(TrainDat)]
 
-#----------------- Gradient Boosting (build best model type) ------------------#
+#----------------- Gradient Boosting (build best model type) -----------------#
 	PM_nrounds <- as.numeric(as.character(Model_Structure$nrounds))
 	PM_max_depth <- as.numeric(as.character(Model_Structure$max_depth))
 	PM_lambda <- as.numeric(as.character(Model_Structure$lambda))
@@ -398,10 +398,11 @@ sum(Euro_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
 sum(Bets))])
 Profit_Statement <- paste0('Profits are ', Profit)
 # Create a summary
-Summary <- c(Model_time, Acc_Statement, Model_Type, Notes, Profit_Statement)
+Summary <- c(Model_time, Acc_Statement, Model_Type, Notes, variables,
+             Profit_Statement)
 Summary <- as.data.frame(Summary)
 # Read in log
 Results_Log <- read.csv('Results Log.csv')
 # add on to the end
 Results_Log <- rbind(Results_Log, Summary)
-# fin but will this change go through
+#------------------------------------ fin ------------------------------------#
