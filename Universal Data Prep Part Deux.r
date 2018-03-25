@@ -1,4 +1,4 @@
-######--- This file is intended to prep all countries data ---######
+#-------------- This file is intended to prep all countries data -------------#
 
 # Load packages:
 require(plyr)
