@@ -9,7 +9,7 @@ require(lubridate)
 
 ###############################################################################
 #--------------------------------Data Loading---------------------------------#
-###############################################################################    
+###############################################################################
 # which project folder we want to work in
 setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Input Data")
 #setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Input Data")
@@ -30,15 +30,20 @@ Teams <- unique(as.character(Teams))
 Teams <- as.data.frame(Teams)
 TeamData <- data.frame()
 
+###############################################################################
+#--------------------------------- Data Prep ---------------------------------#
+###############################################################################
 # Then what we do is create the dataset so that instead of having the raw data
 # and home and away teams we create a data set where
-# we have each team and their associated opposition for the game week, easier to
-# see correlations that make sense that way
+# we have each team and their associated opposition for the game week, easier 
+# to see correlations that make sense that way
 # below we split it by home and away and then match up by team
 
 for(i in 1:nrow(Teams)){
+
+#---------------------------- Transform Home Teams ---------------------------#
 HData <- df[df$HomeTeam == Teams[i,1],]
-# Create the variables that we need - first for all the home matches
+
 HData$Team_Favourite = HData$Home_Favourite
 HData$Opposition = HData$AwayTeam
 HData$Team_Form = HData$Home_Form
@@ -89,9 +94,9 @@ HData$Regress_Result <- ifelse(HData$Regress_Mean_Team >
                                 ifelse(HData$Regress_Mean_Team <
                                 HData$Regress_Mean_Opposition,-1,0))
 
-#-now create the data for the away matches
+#---------------------------- Transform Away Teams ---------------------------#
 AData <- df[df$AwayTeam == Teams[i,1],]
-#-Create the variables that we need - for all the Away matches
+
 AData$Team_Favourite = AData$Away_Favourite
 AData$Opposition = AData$HomeTeam
 AData$Team_Form = AData$Away_Form
@@ -142,6 +147,7 @@ AData$Regress_Result <- ifelse(AData$Regress_Mean_Team >
                                 ifelse(AData$Regress_Mean_Team <
                                 AData$Regress_Mean_Opposition,-1,0))
 
+#---------------------------- Glue it all together ---------------------------#
 # brill now we're cooking
 # so now that we have those two datasets let's append them and add them to
 # our major dataframe
@@ -188,3 +194,4 @@ Calc_Data[, Actual_Outcome := 0]
 Calc_Data[Team_Goal_Diff > 0, Actual_Outcome := 1]
 Calc_Data[Team_Goal_Diff < 0, Actual_Outcome := -1]
 write.csv(Calc_Data, "C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data/Europe Calc Data.csv", row.names=F)
+#------------------------------------ fin ------------------------------------#
