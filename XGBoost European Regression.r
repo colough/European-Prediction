@@ -98,10 +98,11 @@ StatResults <- data.frame()
 	TDat1 <- ModTrain
 	Dependent <- data.frame(ModTrain$Team_Goal_Diff)
 	TDat1 <- cbind(TDat1, Dependent)
-	colnames(TDat1)[ncol(TDat1)] <- "Dependent"
-	cfe <- vtreat::mkCrossFrameNExperiment(TDat1, c('Season','Calendar_Season',
-    'Match_Tier','Home_Away','Poisson_Result','Regress_Result','Relative_Form',
-    'Team_Handicap','Relative_Odds'),"Dependent")
+    colnames(TDat1)[ncol(TDat1)] <- "Dependent"
+    variables <- c('Season', 'Calendar_Season','Match_Tier', 'Home_Away', 
+                'Poisson_Result', 'Regress_Result', 'Relative_Form',
+                'Team_Handicap', 'Relative_Odds')
+	cfe <- vtreat::mkCrossFrameNExperiment(TDat1, variables,"Dependent")
 	plan <- cfe$treatments
 	TrainDat <- cfe$crossFrame
 	codes <- c('lev', 'catN', 'clean', 'isBAD')
