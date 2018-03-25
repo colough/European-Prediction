@@ -95,19 +95,19 @@ StatResults <- data.frame()
 	ModTrain$Season <- as.factor(ModTrain$Season)
 
 	ModTrain <- as.data.frame(ModTrain)
-	TDat1 <- ModTrain
-	Dependent <- data.frame(ModTrain$Team_Goal_Diff)
-	TDat1 <- cbind(TDat1, Dependent)
-    colnames(TDat1)[ncol(TDat1)] <- "Dependent"
-    variables <- c('Season', 'Calendar_Season','Match_Tier', 'Home_Away', 
-                'Poisson_Result', 'Regress_Result', 'Relative_Form',
-                'Team_Handicap', 'Relative_Odds')
-	cfe <- vtreat::mkCrossFrameNExperiment(TDat1, variables,"Dependent")
-	plan <- cfe$treatments
-	TrainDat <- cfe$crossFrame
-	codes <- c('lev', 'catN', 'clean', 'isBAD')
-	TrainDat <- TrainDat[,grep(paste(codes, collapse = "|"),
-												colnames(TrainDat), value=TRUE)]
+     # Define the variables to be used and then create numeric dummies
+     variables <- c('Season', 'Calendar_Season', 'Match_Tier', 'Home_Away',
+    'Poisson_Result', 'Regress_Result', 'Relative_Form',
+    'Team_Handicap', 'Relative_Odds')
+     TDat1 <- ModTrain[, variables]
+     TDat2 <- dummyVars("~.", data = TDat1)
+     TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
+     #- now we need to normalize the training data
+     TrainDatnames <- colnames(TrainDat)
+     #TrainDat <- normalizeData(TrainDat, type="0_1")
+     colnames(TrainDat) <- TrainDatnames
+
+     # same for the Dependent variable
 	# join the Dependent variable
 	Dependent <- data.frame(ModTrain$Team_Goal_Diff)
 	TrainDat <- cbind(TrainDat, Dependent)
@@ -121,7 +121,7 @@ StatResults <- data.frame()
 #---------------- Gradient Boosting (Create prediction data) -----------------#
 	# The below line looks like a stupid mistake on my part but actually it's a
 	# deliberate mistake to counter a stupid mistake on R's part
-	PredData <- df[Season == Season_prediction & Game_Week_Index == i,]
+     PredData <- df[Game_Week_Index == i,]
 
 	# easier for the model here each time
 	PredData$Relative_Form <- PredData$Team_Form -
@@ -131,8 +131,23 @@ StatResults <- data.frame()
 	# Turn Seasons back into a factor so we can use it in the model
 	PredData$Season <- as.factor(PredData$Season)
 	PredData <- as.data.frame(PredData)
-	PredDat <- vtreat::prepare(plan, PredData, pruneSig = NULL)
-	PredDat <- as.matrix(PredDat)
+    PDat1 <- PredData[, variables]
+    PDat2 <- dummyVars("~.", data = PDat1)
+    PredDat <- data.frame(predict(PDat2, newdata = PDat1))
+    #- now we need to normalize the prediction data
+    PredDatnames <- colnames(PredDat)
+    #PredDat <- normalizeData(PredDat, type="0_1")
+    colnames(PredDat) <- PredDatnames
+
+    # Now I have to dynamically filter to make up for that R mistake
+    # Just to be clear: R's mistake. Definitely not mine
+    Season_Col <- paste0("Season.", Season_prediction)
+    Cal_Season_Col <- as.character(unique(df[Season == Season_prediction &
+                    Game_Week_Index == i, Calendar_Season]))
+    PredDat <- PredDat[PredDat[, eval(Season_Col)] == 1,]
+
+
+     PredDat <- as.matrix(PredDat)
 	PredDat <- xgboost::xgb.DMatrix(PredDat)
 
 
