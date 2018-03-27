@@ -79,7 +79,7 @@ StatResults <- data.frame()
 # for(j in 1: 2){
 #------------------------ Loop through every gameweek ------------------------#
  for (i in 8:GWRange){
-	 #i=17
+	
 #------------------ Define and transform model training set ------------------#
 	ModTrain1 <- df[Season < Season_prediction,]
 	ModTrain2 <- df[Season == Season_prediction & Game_Week_Index < i,]
@@ -94,26 +94,45 @@ StatResults <- data.frame()
 	# Turn Seasons back into a factor so we can use it in the model
 	ModTrain$Season <- as.factor(ModTrain$Season)
 
-	ModTrain <- as.data.frame(ModTrain)
-     # Define the variables to be used and then create numeric dummies
-     variables <- c('Season', 'Calendar_Season', 'Match_Tier', 'Home_Away',
-    'Poisson_Result', 'Regress_Result', 'Relative_Form',
-    'Team_Handicap', 'Relative_Odds')
-     TDat1 <- ModTrain[, variables]
-     TDat2 <- dummyVars("~.", data = TDat1)
-     TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
-     #- now we need to normalize the training data
-     TrainDatnames <- colnames(TrainDat)
-     #TrainDat <- normalizeData(TrainDat, type="0_1")
-     colnames(TrainDat) <- TrainDatnames
+    # Now normalise everything else..
+    ModTrain <- as.data.frame(ModTrain)
+    # Define the variables to be used and then create numeric dummies
+    variables <- c('Season','Team_Favourite', 'Team_Shots_Conceded_Form', 
+        'Opposition_Shots_Conceded_Form', 'Team_Goals_Scored_Form',
+        'Home_Away','Opposition_Goals_Scored_Form', 
+        'Team_Goals_Conceded_Form', 'Opposition_Goals_Conceded_Form',
+        'Team_Odds', 'Opposition_Odds','Poisson_Result', 'Regress_Result',
+        'Relative_Form','Team_Handicap', 'Relative_Odds')
+    TDat1 <- ModTrain[, variables]
+    TDat2 <- dummyVars("~.", data = TDat1)
+    TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
+    #- now we need to normalize the training data
+    TrainDatnames <- colnames(TrainDat)
+    #TrainDat <- normalizeData(TrainDat, type="0_1")
+    colnames(TrainDat) <- TrainDatnames
 
-     # same for the Dependent variable
+    # Get the mean encoded team variables
+    TDat3 <- ModTrain
+    Dependent <- data.frame(ModTrain$Team_Goal_Diff)
+    TDat3 <- cbind(TDat3, Dependent)
+    colnames(TDat3)[ncol(TDat3)] <- "Dependent"
+    Team_variables <- c('Team', 'Opposition')
+    cfe <- vtreat::mkCrossFrameNExperiment(TDat3, Team_variables, "Dependent")
+    plan <- cfe$treatments
+    Team_Vars <- cfe$crossFrame
+    codes <- c('lev', 'catN', 'clean', 'isBAD')
+    Team_Vars <- Team_Vars[, grep(paste(codes, collapse = "|"),
+                                        colnames(Team_Vars), value = TRUE)]
+
+     # Add in the mean encoded variables
+    TrainDat <- cbind(TrainDat, Team_Vars)
 	# join the Dependent variable
 	Dependent <- data.frame(ModTrain$Team_Goal_Diff)
 	TrainDat <- cbind(TrainDat, Dependent)
 	# ok so to start modelling we have to declare a so called 'task', with the
 	# dependent and independent variables called out
-	TrainDat <- as.data.frame(TrainDat)
+    TrainDat <- as.data.frame(TrainDat)
+    TrainDat[is.na(TrainDat)] <- 0
 	trainTask <- makeRegrTask(data = TrainDat,
 							target = "ModTrain.Team_Goal_Diff")
 
@@ -131,6 +150,8 @@ StatResults <- data.frame()
 	# Turn Seasons back into a factor so we can use it in the model
 	PredData$Season <- as.factor(PredData$Season)
 	PredData <- as.data.frame(PredData)
+
+
     PDat1 <- PredData[, variables]
     PDat2 <- dummyVars("~.", data = PDat1)
     PredDat <- data.frame(predict(PDat2, newdata = PDat1))
@@ -139,6 +160,9 @@ StatResults <- data.frame()
     #PredDat <- normalizeData(PredDat, type="0_1")
     colnames(PredDat) <- PredDatnames
 
+    # And the team variables don't forget!
+    Pred_Team_Vars <- vtreat::prepare(plan, PredData, pruneSig = NULL)
+    PredDat <- cbind(PredDat, Pred_Team_Vars)
     # Now I have to dynamically filter to make up for that R mistake
     # Just to be clear: R's mistake. Definitely not mine
     Season_Col <- paste0("Season.", Season_prediction)
@@ -147,7 +171,7 @@ StatResults <- data.frame()
     PredDat <- PredDat[PredDat[, eval(Season_Col)] == 1,]
 
 
-     PredDat <- as.matrix(PredDat)
+    PredDat <- as.matrix(PredDat)
 	PredDat <- xgboost::xgb.DMatrix(PredDat)
 
 
@@ -399,7 +423,7 @@ write.csv(Calc_df, "Europe Calc Data Output.csv", row.names = FALSE)
 
 #--------------------------- Summary of results Log --------------------------#
 # A Brief History of Time:
-Model_time <- paste0('The model was run at ',now())
+Model_time <- paste0('The model was run at ',lubridate::now())
 # Overall accuracy for the season:
 Accuracy <- setDT(Calc_df[Season == Season_prediction, j = list(Cor_Pred =
   mean(Euro_Same))])
@@ -421,4 +445,6 @@ Summary <- as.data.frame(Summary)
 Results_Log <- read.csv('Results Log.csv')
 # add on to the end
 Results_Log <- rbind(Results_Log, Summary)
+# and publish
+write.csv('Results Log.csv', row.names = F)
 #------------------------------------ fin ------------------------------------#
