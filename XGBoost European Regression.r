@@ -433,18 +433,21 @@ write.csv(Calc_df, "Europe Calc Data Output.csv", row.names = FALSE)
 # A Brief History of Time:
 Model_time <- paste0('The model was run at ',lubridate::now())
 # Overall accuracy for the season:
+Calc_df <- Calc_df[complete.cases(Calc_df),]
 Accuracy <- setDT(Calc_df[Season == Season_prediction, j = list(Cor_Pred =
   mean(Euro_Same))])
 Acc_Statement <- paste0('The accuracy is ',Accuracy)
 # type of model run
 Model_Type <- 'This is a: European Regression XGBoost'
 # Any Notes
-Notes <- 'done with vtreat, always predicting opposition'
+Notes <- 'most significant variables, mean encoded team vars included'
 # Straight Profitability
 Profit <- setDT(Calc_df[Season == Season_prediction, j = list(
 sum(Euro_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
 sum(Bets))])
 Profit_Statement <- paste0('Profits are ', Profit)
+# change variable storage so it's a prettier list
+variables <- paste(variables, collapse = ",")
 # Create a summary
 Summary <- c(Model_time, Acc_Statement, Model_Type, Notes, variables,
              Profit_Statement)
@@ -454,5 +457,5 @@ Results_Log <- read.csv('Results Log.csv')
 # add on to the end
 Results_Log <- rbind(Results_Log, Summary)
 # and publish
-write.csv('Results Log.csv', row.names = F)
+write.csv(Results_Log,'Results Log.csv', row.names = F)
 #------------------------------------ fin ------------------------------------#

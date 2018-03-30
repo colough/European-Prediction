@@ -1,8 +1,8 @@
-#---- this file creates an XGBoost classification model for European data -----#
+#---- this file creates an XGBoost classification model for European data ----#
 
-##############################################################################
-#------------------------------Package Loading-------------------------------#
-##############################################################################
+###############################################################################
+#------------------------------Package Loading--------------------------------#
+###############################################################################
 # You wouldn't go shopping without your wallet, don't forget your packages
 require(pls)
 require(data.table)
@@ -17,9 +17,9 @@ require(parallelMap)
 require(mlrMBO)
 require(devtools)
 
-##############################################################################
-#-----------------------------Parameter Settings-----------------------------#
-##############################################################################
+###############################################################################
+#-----------------------------Parameter Settings------------------------------#
+###############################################################################
 # what Season are we predicting? (Enter numeric)
 Season_prediction <- 20132014
 # Are we doing a single market or Europe wide?
@@ -30,26 +30,28 @@ League <- c('D1','E0', 'F1', 'SP1', 'I1')
 # How many games in a season?
 GWRange <- 38 #- 38 games in a season son
 
-##############################################################################
-#--------------------------------Data Loading--------------------------------#
-##############################################################################
+###############################################################################
+#--------------------------------Data Loading---------------------------------#
+###############################################################################
 
 # which project folder we want to work in
-#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+setwd (paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
+      "Europe/Output Data"))
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
-df <- df[complete.cases(df),]
-#--------------------------- Apply Seasonal Filters ---------------------------#
+#df <- df[complete.cases(df),]
+
+#--------------------------- Apply Seasonal Filters --------------------------#
+
 # convert to numeric
 df$Season <- gsub(" ", "", df$Season)
 df$Season <- as.numeric(df$Season)
 df <- df[Season <= Season_prediction,]
 
-#---------------------------- Apply Market Filters ----------------------------#
+#---------------------------- Apply Market Filters ---------------------------#
 df <- df[Div %in% League]
 
-#----------------------------- Apply Team Filters -----------------------------#
+#----------------------------- Apply Team Filters ----------------------------#
 # Only want to build models for teams who are in current season
 Teams <- unique(df[Season == max(df$Season),HomeTeam])
 # Can only take teams whose first season isn't the one currently predicting:
@@ -69,16 +71,15 @@ df <- df[df$AwayTeam %in% Teams$HomeTeam,]
 PredResults <- data.frame()
 StatResults <- data.frame()
 
-##############################################################################
-#-------------------------------Model Building-------------------------------#
-##############################################################################
+###############################################################################
+#-------------------------------Model Building--------------------------------#
+###############################################################################
 
-# ok so this is the meat of the action where for every team we...
-# for(j in 1: 2){
-#------------------------ Loop through every gameweek -------------------------#
- for (i in 8:GWRange){
-	 #i=17
-#------------------ Define and transform model training set -------------------#
+#------------------------ Loop through every gameweek ------------------------#
+
+for (i in 8:GWRange){
+
+#------------------ Define and transform model training set ------------------#
 	ModTrain1 <- df[Season < Season_prediction,]
 	ModTrain2 <- df[Season == Season_prediction & Game_Week_Index < i,]
 	ModTrain <- rbindlist(list(ModTrain1,ModTrain2))
@@ -156,11 +157,10 @@ StatResults <- data.frame()
 	PredDat <- xgboost::xgb.DMatrix(PredDat)
 
 
-#----------------- Gradient Boosting (Hyperparameter Tuning) ------------------#
+#----------------- Gradient Boosting (Hyperparameter Tuning) -----------------#
 
 	# When doing Hyperparameter tuning we need to save the model in a local
 	# folder so we temporarily move to the below
-	#setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
 	setwd ("C:/Users/ciana/Documents/Football Predictions/Europe")
 
 	parallelStartSocket(3)
@@ -173,7 +173,8 @@ StatResults <- data.frame()
 	makeNumericParam("subsample", lower = 0.1, upper = 0.8),
 	makeNumericParam("min_child_weight", lower = 0.5, upper = 8),
 	makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8),
-	makeDiscreteParam(id = "objective", values = c("multi:softprob"), tunable = F)
+    makeDiscreteParam(id = "objective", values = c("multi:softprob"),
+                      tunable = F)
 	)
 	ctrl = makeTuneControlMBO()
 	inner = makeResampleDesc("Subsample", iters = 3)
@@ -188,10 +189,10 @@ StatResults <- data.frame()
 	parallelStop()
 	proc.time()-ptm
 	# Bring it back
-	#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-	setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+	setwd (paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
+          "Europe/Output Data"))
 
-#---------------- Gradient Boosting (select best parameters) ------------------#
+#---------------- Gradient Boosting (select best parameters) -----------------#
 	# this is a little messy but we summarize the optimal fits
 	for (p in 1:length(r$extract)){
 	    a <- unlist(r$extract[[p]])
@@ -217,7 +218,7 @@ StatResults <- data.frame()
 	# Transform Traindat back to being just numeric for the actual model build
 	TrainDat <- TrainDat[,-ncol(TrainDat)]
 
-#----------------- Gradient Boosting (build best model type) ------------------#
+#----------------- Gradient Boosting (build best model type) -----------------#
 	PM_nrounds <- as.numeric(as.character(Model_Structure$nrounds))
 	PM_max_depth <- as.character(Model_Structure$max_depth)
 	PM_lambda <- as.character(Model_Structure$lambda)
@@ -236,7 +237,7 @@ StatResults <- data.frame()
 	Pmod <- xgboost::xgb.train(param, dTrain, , nrounds = PM_nrounds,
 						objective = PM_objective, num_class = 3)
 
-#--------------- Gradient Boosting (Prediction & Context data) ----------------#
+#--------------- Gradient Boosting (Prediction & Context data) ---------------#
 
 	#- Fit is a column of our predicted values
 	#-Act is the actual result in terms of goal difference
@@ -265,16 +266,15 @@ StatResults <- data.frame()
 													Game_Week_Index]
 	p4 <- as.data.frame(p4)
 
-	#-now we are back to stitching our prediction table together
+	# now we are back to stitching our prediction table together
 	AggP <- cbind(div1,p1,p2,p3,p4,P_Draw,P_Opposition,P_Team)
-	colnames(AggP) <- c("League","Team", "Season", "Opposition", "Game.Week.Index",
-						"P-Draw","P-Opposition","P-Team")
+	colnames(AggP) <- c("League","Team", "Season", "Opposition", 
+             "Game_Week_Index", "P_Draw","P_Opposition","P_Team")
 
-	#- save the results
+	# save the results
 	PredResults <- rbindlist(list(PredResults,AggP))
 
-
-	}
+}
 
 
 
