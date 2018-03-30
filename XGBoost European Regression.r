@@ -79,8 +79,6 @@ StatResults <- data.frame()
 #-------------------------------Model Building--------------------------------#
 ###############################################################################
 
-# ok so this is the meat of the action where for every team we...
-# for(j in 1: 2){
 #------------------------ Loop through every gameweek ------------------------#
 
 for (i in 8:GWRange){
@@ -102,9 +100,9 @@ for (i in 8:GWRange){
     # Now normalise everything else..
     ModTrain <- as.data.frame(ModTrain)
     # Define the variables to be used and then create numeric dummies
-    variables <- c('Season','Team_Favourite', 'Team_Shots_Conceded_Form', 
+    variables <- c('Season','Team_Favourite','Team_Shots_Conceded_Form', 
         'Opposition_Shots_Conceded_Form', 'Team_Goals_Scored_Form',
-        'Home_Away','Opposition_Goals_Scored_Form', 
+        'Home_Away', 'Opposition_Goals_Scored_Form', 'Match_Tier',
         'Team_Goals_Conceded_Form', 'Opposition_Goals_Conceded_Form',
         'Team_Odds', 'Opposition_Odds','Poisson_Result', 'Regress_Result',
         'Relative_Form','Team_Handicap', 'Relative_Odds')
