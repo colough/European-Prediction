@@ -1,8 +1,8 @@
-#---- this file creates an XGBoost classification model for European data -----#
+#---- this file creates an XGBoost classification model for European data ----#
 
-################################################################################
-#------------------------------Package Loading---------------------------------#
-################################################################################
+###############################################################################
+#------------------------------Package Loading--------------------------------#
+###############################################################################
 # You wouldn't go shopping without your wallet, don't forget your packages
 
 require(pls)
@@ -37,21 +37,25 @@ GWRange <- 38 #- 38 games in a season son
 ###############################################################################
 
 # which project folder we want to work in
-#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+setwd (paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
+      "Europe/Output Data"))
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
 #df <- df[complete.cases(df),]
+
 #--------------------------- Apply Seasonal Filters --------------------------#
+
 # convert to numeric
 df$Season <- gsub(" ", "", df$Season)
 df$Season <- as.numeric(df$Season)
 df <- df[Season <= Season_prediction,]
 
 #---------------------------- Apply Market Filters ---------------------------#
+
 df <- df[Div %in% League]
 
 #----------------------------- Apply Team Filters ----------------------------#
+
 # Only want to build models for teams who are in current season
 Teams <- unique(df[Season == max(df$Season),HomeTeam])
 # Can only take teams whose first season isn't the one currently predicting:
@@ -78,7 +82,8 @@ StatResults <- data.frame()
 # ok so this is the meat of the action where for every team we...
 # for(j in 1: 2){
 #------------------------ Loop through every gameweek ------------------------#
- for (i in 8:GWRange){
+
+for (i in 8:GWRange){
 	
 #------------------ Define and transform model training set ------------------#
 	ModTrain1 <- df[Season < Season_prediction,]
@@ -179,7 +184,6 @@ StatResults <- data.frame()
 
 	# When doing Hyperparameter tuning we need to save the model in a local
 	# folder so we temporarily move to the below
-	#setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
 	setwd ("C:/Users/ciana/Documents/Football Predictions/Europe")
 
 	parallelStartSocket(3)
@@ -207,11 +211,12 @@ StatResults <- data.frame()
 	parallelStop()
 	proc.time()-ptm
 	# Bring it back
-	#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-	setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+	setwd (paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
+    "Europe/Output Data"))
 
 #---------------- Gradient Boosting (select best parameters) -----------------#
-	# this is a little messy but we summarize the optimal fits
+
+    # this is a little messy but we summarize the optimal fits
 	for (p in 1:length(r$extract)){
 	    a <- unlist(r$extract[[p]])
 	    nrounds <- a$x.nrounds
@@ -243,8 +248,10 @@ StatResults <- data.frame()
 	PM_lambda <- as.numeric(as.character(Model_Structure$lambda))
 	PM_eta <- as.numeric(as.character(Model_Structure$eta))
 	PM_subsample <- as.numeric(as.character(Model_Structure$subsample))
-	PM_min_child_weight <- as.numeric(as.character(Model_Structure$min_child_weight))
-	PM_colsample_bytree <- as.numeric(as.character(Model_Structure$colsample_bytree))
+    PM_min_child_weight <- as.numeric(as.character
+                                        (Model_Structure$min_child_weight))
+    PM_colsample_bytree <- as.numeric(as.character
+                                        (Model_Structure$colsample_bytree))
 	PM_objective <- as.character(Model_Structure$objective)
 
 	TrainDat <- as.matrix(TrainDat)
@@ -256,7 +263,7 @@ StatResults <- data.frame()
 	Pmod <- xgboost::xgb.train(param, dTrain, , nrounds = PM_nrounds,
 						objective = PM_objective)
 
-#----------------- Gradient Boosting (Find optimal c-values) ------------------#
+#----------------- Gradient Boosting (Find optimal c-values) -----------------#
 	# Fit is a matrix of predicted values for each principle component
 	# Act is the actual result in terms of goal difference
 	iter <- which.min(Agg_Results$Score)
@@ -275,17 +282,19 @@ StatResults <- data.frame()
 	CValues <- cbind(CVala,CValb)
 	CValues <- as.data.frame(CValues)
 
-	# now we run a for loop which goes through the C-value combinations and checks
-	# what the story is with the old accuracy levels, for each combination we want
-	# to figure out what the maximum accuracy achieved is and then we want to see
-	# where the elbow point is for the pc's we'll get that by looking at where
-	# there's the greatest increase in predictions and take the first one
+    # now we run a for loop which goes through the C-value combinations and 
+    # checks what the story is with the old accuracy levels, for each 
+    # combination we want to figure out what the maximum accuracy achieved is 
+    # and then we want to see where the elbow point is for the pc's we'll get 
+    # that by looking at where there's the greatest increase in predictions 
+    # and take the first one
 
 	a <- nrow(Resers)
 	b <- ncol(Resers)
 
 	# Create ResP1 which is the actual goal difference transformed in to class
-	# results (-1,0,1) first column of our new dataframe will be the actual result
+    # results (-1,0,1) first column of our new dataframe will be the actual 
+    # result
 	ResP1 <- data.frame()
 	# just create this as a temporary measure so that things are the right size
 	ResP1 <- rep(1,nrow(Resers))
@@ -298,24 +307,24 @@ StatResults <- data.frame()
 	ResP1 <- as.data.frame(ResP1)
 
 	# ok shtuff gets a bit mad here so pay attention:
-	# so for each of the possible C-value combinations we want to check what the
-	# accuracy is ToSt is to house the
+	# so for each of the possible C-value combinations we want to check what 
+    # the accuracy is ToSt is to house the
 	ToSt <- as.data.frame(1)
 	for (d in 1:nrow(CValues)){
 
 		for(f in 2:ncol(Resers)){
-			# for each principle component we classify the predicted values in to what
-			# the result would be
-			ResP1[,f] <- ifelse(Resers[,f] > CValues[d,1],1,ifelse(Resers[,f] <
-																												-1*CValues[d,2], -1, 0))
+            # for each principle component we classify the predicted values in 
+            # to what the result would be
+            ResP1[, f] <- ifelse(Resers[, f] > CValues[d, 1], 1, ifelse(
+                                 Resers[, f] < -1*CValues[d,2], -1, 0))
 			}
 		# Sust houses the count of correct predictions
-		# first we set it to be a series of 1's so it's the right size, as above
+		# first we set it to be a series of 1's so it's the right size as above
 		SuSt <- rep(1,a)
 		SuSt <- as.data.frame(SuSt)
 		for (k in 2:ncol(ResP1)){
-			# but now what we want to do is create a "truth" matrix where 1 indicates
-			# a correct prediction
+			# but now what we want to do is create a "truth" matrix where 1 
+            # indicates a correct prediction
 			SuSt[,k-1] <- ifelse(ResP1[,k] == ResP1[,1],1,0)
 			}
 		TempSt <- as.data.frame(1)
@@ -329,8 +338,9 @@ StatResults <- data.frame()
 		# this is the max accuracy level
 		M1 <- max(TempSt[2,])
 		TempStp1 <- as.data.frame(1)
-		# TempSp1 tells us the where the elbow points are for the principle components
-		#for (m in 2:ncol(TempSt)){
+		# TempSp1 tells us the where the elbow points are for the principle 
+        # components
+        #for (m in 2:ncol(TempSt)){
 		#	TempStp1[,m-1] <- TempSt[1,m] - TempSt[1,m-1]
 		#	}
 
@@ -387,7 +397,7 @@ p4 <- df[Season == Season_prediction & Game_Week_Index == i,
 p4 <- as.data.frame(p4)
 p5a <- predict(Pmod, PredDat)
 p5a <- as.data.frame(p5a)
-AggP <- cbind(p1,p2,p3,p4,p5a,ToStp[,2],ToStp[,3],ToStp[,4]) # stitched together
+AggP <- cbind(p1,p2,p3,p4,p5a,ToStp[,2],ToStp[,3],ToStp[,4]) 
 colnames(AggP) <- c("Team", "Season", "Opposition", "Game_Week_Index",
 					"Euro_Prediction", "Euro_Pos_C_Value", "Euro_Neg_C_Value",
                     "Euro_Max_Accuracy")
