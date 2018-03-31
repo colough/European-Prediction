@@ -100,12 +100,12 @@ for (i in 8:GWRange){
     # Now normalise everything else..
     ModTrain <- as.data.frame(ModTrain)
     # Define the variables to be used and then create numeric dummies
-    variables <- c('Season','Team_Favourite','Opposition_Shots_Conceded_Form', 
-        'Opposition_Goals_Scored_Form',
-        'Home_Away', 'Match_Tier',
-        'Opposition_Goals_Conceded_Form', 
-        'Opposition_Odds', 'Poisson_Result', 'Regress_Result',
-        'Team_Handicap')
+    variables <- c('Season','Team_Favourite','Team_Shots_Conceded_Form', 
+        'Opposition_Shots_Conceded_Form', 'Team_Goals_Scored_Form',
+        'Opposition_Goals_Scored_Form','Home_Away', 'Match_Tier',
+        'Team_Goals_Conceded_Form', 'Opposition_Goals_Conceded_Form', 
+        'Team_Odds', 'Opposition_Odds', 'Poisson_Result', 'Regress_Result',
+        'Team_Handicap', 'Relative_Odds', 'Relative_Form')
     TDat1 <- ModTrain[, variables]
     TDat2 <- dummyVars("~.", data = TDat1)
     TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
@@ -397,8 +397,8 @@ p5a <- predict(Pmod, PredDat)
 p5a <- as.data.frame(p5a)
 AggP <- cbind(p1,p2,p3,p4,p5a,ToStp[,2],ToStp[,3],ToStp[,4]) 
 colnames(AggP) <- c("Team", "Season", "Opposition", "Game_Week_Index",
-					"Euro_O_Prediction", "Euro_O_Pos_C_Value", 
-                    "Euro_O_Neg_C_Value", "Euro_O_Max_Accuracy")
+					"Euro_Prediction", "Euro_Pos_C_Value", 
+                    "Euro_Neg_C_Value", "Euro_Max_Accuracy")
 # save the results
 	PredResults <- rbindlist(list(PredResults,AggP))
 	print(i)
@@ -408,24 +408,24 @@ colnames(AggP) <- c("Team", "Season", "Opposition", "Game_Week_Index",
 # read in the existing calc data
 setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
     "Europe/Output Data"))
-Calc_df <- read.csv("Europe Calc Data.csv", header = TRUE)
+Calc_df <- read.csv("Europe Calc Data Output.csv", header = TRUE)
 Calc_df <- setDT(Calc_df)
 # merge our results
 Calc_df <- merge(Calc_df, PredResults, by = c('Season', 'Team', 'Opposition',
                             'Game_Week_Index'), all.x=T)
 # Calculate actual vs predicted metrics
-Calc_df[, Euro_O_Pred_Outcome := 0]
-Calc_df[Euro_O_Prediction >= Euro_O_Pos_C_Value, Euro_O_Pred_Outcome := 1]
-Calc_df[Euro_O_Prediction <= Euro_O_Neg_C_Value * -1,
-                                            Euro_O_Pred_Outcome := -1]
-Calc_df[, Euro_O_Same := 0]
-Calc_df[Actual_Outcome == Euro_O_Pred_Outcome, Euro_O_Same := 1]
-Calc_df[, Euro_O_Pred_Winning_Odds := 0]
-Calc_df[Euro_O_Pred_Outcome == -1, Euro_O_Pred_Winning_Odds := Opposition_Odds]
-Calc_df[Euro_O_Pred_Outcome == 1, Euro_O_Pred_Winning_Odds := Team_Odds]
-Calc_df[Euro_O_Pred_Outcome == 0, Euro_O_Pred_Winning_Odds := Draw_Odds]
+Calc_df[, Euro_Pred_Outcome := 0]
+Calc_df[Euro_Prediction >= Euro_Pos_C_Value, Euro_Pred_Outcome := 1]
+Calc_df[Euro_Prediction <= Euro_Neg_C_Value * -1,
+                                            Euro_Pred_Outcome := -1]
+Calc_df[, Euro_Same := 0]
+Calc_df[Actual_Outcome == Euro_Pred_Outcome, Euro_Same := 1]
+Calc_df[, Euro_Pred_Winning_Odds := 0]
+Calc_df[Euro_Pred_Outcome == -1, Euro_Pred_Winning_Odds := Opposition_Odds]
+Calc_df[Euro_Pred_Outcome == 1, Euro_Pred_Winning_Odds := Team_Odds]
+Calc_df[Euro_Pred_Outcome == 0, Euro_Pred_Winning_Odds := Draw_Odds]
 Calc_df[, Bets := 200]
-Calc_df[, Euro_O_Winnings := Bets * Euro_O_Pred_Winning_Odds * Euro_O_Same]
+Calc_df[, Euro_Winnings := Bets * Euro_Pred_Winning_Odds * Euro_Same]
 
 # Send it out to play in the traffic
 write.csv(Calc_df, "Europe Calc Data Output.csv", row.names = FALSE)
@@ -441,7 +441,7 @@ Acc_Statement <- paste0('The accuracy is ',Accuracy)
 # type of model run
 Model_Type <- 'This is a: European Regression XGBoost'
 # Any Notes
-Notes <- 'most significant variables, mean encoded team vars included'
+Notes <- 'most significant variables, Opposition vars'
 # Straight Profitability
 Profit <- setDT(Calc_df[Season == Season_prediction, j = list(
 sum(Euro_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
