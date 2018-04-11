@@ -339,7 +339,7 @@ Acc_Statement <- paste0('The accuracy is ', Accuracy)
 # type of model run
 Model_Type <- 'This is a: European Classification XGBoost'
 # Any Notes
-Notes <- 'most significant variables, all vars'
+Notes <- 'most significant variables, Team vars'
 # Straight Profitability
 Profit <- setDT(Calc_df[Season == Season_prediction, j = list(
 sum(Euro_T_Cl_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(

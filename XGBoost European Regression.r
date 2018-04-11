@@ -197,7 +197,7 @@ for (i in 8:GWRange){
 	makeNumericParam("colsample_bytree", lower = 0.2, upper = 0.8),
 	makeDiscreteParam(id = "objective", values = c("reg:linear"), tunable = F)
 	)
-	ctrl = makeTuneControlMBO()
+	ctrl = makeTuneControlGrid()
 	inner = makeResampleDesc("Subsample", iters = 3)
 	# Tuning in Inner resampling loop
 	lrn = makeTuneWrapper("regr.xgboost", resampling = inner, par.set = ps,
