@@ -106,11 +106,10 @@ for (i in 8:GWRange){
 	ModTrain <- as.data.frame(ModTrain)
     # Define the variables to be used and then create numeric dummies
     variables <- c('Season', 'Team_Favourite', 'Team_Shots_Conceded_Form',
-        'Opposition_Shots_Conceded_Form', 'Team_Goals_Scored_Form',
-        'Opposition_Goals_Scored_Form', 'Home_Away', 'Match_Tier',
-        'Team_Goals_Conceded_Form', 'Opposition_Goals_Conceded_Form',
-        'Team_Odds', 'Opposition_Odds', 'Poisson_Result', 'Regress_Result',
-        'Team_Handicap', 'Relative_Odds', 'Relative_Form')
+        'Team_Goals_Scored_Form',
+        'Home_Away', 'Match_Tier',
+        'Team_Goals_Conceded_Form',
+        'Team_Odds', 'Team_Handicap')
     TDat1 <- ModTrain[, variables]
     TDat2 <- dummyVars("~.", data = TDat1)
     TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
@@ -293,8 +292,8 @@ for (i in 8:GWRange){
 	# now we are back to stitching our prediction table together
 	AggP <- cbind(div1,p1,p2,p3,p4,P_Draw,P_Opposition,P_Team)
 	colnames(AggP) <- c("League","Team", "Season", "Opposition", 
-             "Game_Week_Index", "Euro_P_Draw","Euro_P_Opposition",
-             "Euro_P_Team")
+             "Game_Week_Index", "Euro_T_P_Draw","Euro_T_P_Opposition",
+             "Euro_T_P_Team")
 
 	# save the results
 	PredResults <- rbindlist(list(PredResults,AggP))
@@ -311,20 +310,20 @@ Calc_df <- setDT(Calc_df)
 Calc_df <- merge(Calc_df, PredResults, by = c('Season', 'Team', 
                             'Opposition', 'Game_Week_Index'), all.x = T)
 # Calculate actual vs predicted metrics
-Calc_df[, Euro_Cl_Pred_Outcome := 0]
-Calc_df[Euro_P_Team > Euro_P_Opposition & Euro_P_Team > Euro_P_Draw,
-                                            Euro_Cl_Pred_Outcome := 1]
-Calc_df[Euro_P_Opposition > Euro_P_Team & Euro_P_Opposition > Euro_P_Draw,
-                                            Euro_Cl_Pred_Outcome := -1]
-Calc_df[, Euro_Cl_Same := 0]
-Calc_df[Actual_Outcome == Euro_Cl_Pred_Outcome, Euro_Cl_Same := 1]
-Calc_df[, Euro_Cl_Pred_Winning_Odds := 0]
-Calc_df[Euro_Cl_Pred_Outcome == -1, Euro_Cl_Pred_Winning_Odds
+Calc_df[, Euro_T_Cl_Pred_Outcome := 0]
+Calc_df[Euro_T_P_Team > Euro_T_P_Opposition & Euro_T_P_Team > Euro_T_P_Draw,
+                                            Euro_T_Cl_Pred_Outcome := 1]
+Calc_df[Euro_T_P_Opposition > Euro_T_P_Team & Euro_T_P_Opposition > Euro_T_P_Draw,
+                                            Euro_T_Cl_Pred_Outcome := -1]
+Calc_df[, Euro_T_Cl_Same := 0]
+Calc_df[Actual_Outcome == Euro_T_Cl_Pred_Outcome, Euro_T_Cl_Same := 1]
+Calc_df[, Euro_T_Cl_Pred_Winning_Odds := 0]
+Calc_df[Euro_T_Cl_Pred_Outcome == -1, Euro_T_Cl_Pred_Winning_Odds
                                                         := Opposition_Odds]
-Calc_df[Euro_Cl_Pred_Outcome == 1, Euro_Cl_Pred_Winning_Odds := Team_Odds]
-Calc_df[Euro_Cl_Pred_Outcome == 0, Euro_Cl_Pred_Winning_Odds := Draw_Odds]
+Calc_df[Euro_T_Cl_Pred_Outcome == 1, Euro_T_Cl_Pred_Winning_Odds := Team_Odds]
+Calc_df[Euro_T_Cl_Pred_Outcome == 0, Euro_T_Cl_Pred_Winning_Odds := Draw_Odds]
 Calc_df[, Bets := 200]
-Calc_df[, Euro_Cl_Winnings := Bets * Euro_Cl_Pred_Winning_Odds * Euro_Cl_Same]
+Calc_df[, Euro_T_Cl_Winnings := Bets * Euro_T_Cl_Pred_Winning_Odds * Euro_T_Cl_Same]
 
 # Send it out to play in the traffic
 write.csv(Calc_df, "Europe Calc Data Output.csv", row.names = FALSE)
@@ -335,7 +334,7 @@ Model_time <- paste0('The model was run at ', lubridate::now())
 # Overall accuracy for the season:
 Calc_df <- Calc_df[complete.cases(Calc_df),]
 Accuracy <- setDT(Calc_df[Season == Season_prediction, j = list(Cor_Pred =
-  mean(Euro_Cl_Same))])
+  mean(Euro_T_Cl_Same))])
 Acc_Statement <- paste0('The accuracy is ', Accuracy)
 # type of model run
 Model_Type <- 'This is a: European Classification XGBoost'
@@ -343,7 +342,7 @@ Model_Type <- 'This is a: European Classification XGBoost'
 Notes <- 'most significant variables, all vars'
 # Straight Profitability
 Profit <- setDT(Calc_df[Season == Season_prediction, j = list(
-sum(Euro_Cl_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
+sum(Euro_T_Cl_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
 sum(Bets))])
 Profit_Statement <- paste0('Profits are ', Profit)
 # change variable storage so it's a prettier list
