@@ -3,7 +3,8 @@
 ###############################################################################
 #------------------------------Package Loading--------------------------------#
 ###############################################################################
-# You wouldn't go shopping without your wallet, don't forget your packages
+# Frodo didn't make it to Mount Doom and then realise he forgot the Ring. We
+# should take inspiration and remember our packages
 
 require(pls)
 require(data.table)

@@ -4,6 +4,7 @@
 #------------------------------Package Loading--------------------------------#
 ###############################################################################
 # You wouldn't go shopping without your wallet, don't forget your packages
+
 require(pls)
 require(data.table)
 require(RSNNS)
@@ -16,6 +17,7 @@ require(DiceKriging)
 require(parallelMap)
 require(mlrMBO)
 require(devtools)
+require(vtreat)
 
 ###############################################################################
 #-----------------------------Parameter Settings------------------------------#
