@@ -3,7 +3,7 @@
 ###############################################################################
 #------------------------------Package Loading--------------------------------#
 ###############################################################################
-# You wouldn't go shopping without your wallet, don't forget your packages
+# Like Voldemort and his Horcruxes we're a little dependent on our packages..
 
 require(pls)
 require(data.table)
@@ -23,7 +23,7 @@ require(vtreat)
 #-----------------------------Parameter Settings------------------------------#
 ###############################################################################
 # what Season are we predicting? (Enter numeric)
-Season_prediction <- 20132014
+Season_prediction <- 20152016
 # Are we doing a single market or Europe wide?
 # Take away any leagues you don't want included:
 # Full List: League <- c('D1','E0', 'F1', 'SP1', 'I1')
@@ -94,29 +94,48 @@ for (i in 8:GWRange){
 								ModTrain$Team_Odds
 	# Turn Seasons back into a factor so we can use it in the model
 	ModTrain$Season <- as.factor(ModTrain$Season)
-	# As we're doing a classification model we want the dependent to be
+    # Like Han Solo, we have to do the odd bit of smuggling every now and then
+    # in this case it's abducting the dependent in it's numeric form so that
+    # we can mean encode the team variable
+    Team_Dependent <- data.frame(ModTrain$Team_Goal_Diff)
+    # As we're doing a classification model we want the dependent to be
 	# classes
 	ModTrain$Team_Goal_Diff <- ifelse(ModTrain$Team_Goal_Diff > 0, 2,
 							ifelse(ModTrain$Team_Goal_Diff < 0, 0, 1))
 	ModTrain$Team_Goal_Diff <- as.factor(ModTrain$Team_Goal_Diff)
 	ModTrain <- as.data.frame(ModTrain)
-	# Define the variables to be used and then create numeric dummies
-	variables <- c('Season','Calendar_Season','Match_Tier','Home_Away',
-	'Poisson_Result','Regress_Result','Relative_Form',
-	'Team_Handicap','Relative_Odds')
-	TDat1 <- ModTrain[,variables]
-	TDat2 <- dummyVars("~.",data=TDat1)
-	TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
-	#- now we need to normalize the training data
-	TrainDatnames <- colnames(TrainDat)
-	#TrainDat <- normalizeData(TrainDat, type="0_1")
-	colnames(TrainDat) <- TrainDatnames
+    # Define the variables to be used and then create numeric dummies
+    variables <- c('Season', 'Team_Favourite', 'Team_Shots_Conceded_Form',
+        'Opposition_Shots_Conceded_Form', 'Team_Goals_Scored_Form',
+        'Opposition_Goals_Scored_Form', 'Home_Away', 'Match_Tier',
+        'Team_Goals_Conceded_Form', 'Opposition_Goals_Conceded_Form',
+        'Team_Odds', 'Opposition_Odds', 'Poisson_Result', 'Regress_Result',
+        'Team_Handicap', 'Relative_Odds', 'Relative_Form')
+    TDat1 <- ModTrain[, variables]
+    TDat2 <- dummyVars("~.", data = TDat1)
+    TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
+    #- now we need to normalize the training data
+    TrainDatnames <- colnames(TrainDat)
+    #TrainDat <- normalizeData(TrainDat, type="0_1")
+    colnames(TrainDat) <- TrainDatnames
 
-	# same for the Dependent variable
-	Dependent <- data.frame(ModTrain$Team_Goal_Diff)
-  	# for this package it wants a single column with the the three groups
-		# to classify
- 	TrainDat <- cbind(TrainDat, Dependent)
+    # Get the mean encoded team variables
+    TDat3 <- ModTrain
+    TDat3 <- cbind(TDat3, Team_Dependent)
+    colnames(TDat3)[ncol(TDat3)] <- "Dependent"
+    Team_variables <- c('Team', 'Opposition')
+    cfe <- vtreat::mkCrossFrameNExperiment(TDat3, Team_variables, "Dependent")
+    plan <- cfe$treatments
+    Team_Vars <- cfe$crossFrame
+    codes <- c('lev', 'catN', 'clean', 'isBAD')
+    Team_Vars <- Team_Vars[, grep(paste(codes, collapse = "|"),
+                                        colnames(Team_Vars), value = TRUE)]
+
+    # Add in the mean encoded variables
+    TrainDat <- cbind(TrainDat, Team_Vars)
+    # join the Dependent variable
+    Dependent <- data.frame(ModTrain$Team_Goal_Diff)
+    TrainDat <- cbind(TrainDat, Dependent)
 
 	# ok so to start modelling we have to declare a so called 'task', with the
 	# dependent and independent variables called out
@@ -139,7 +158,6 @@ for (i in 8:GWRange){
 	PredData$Season <- as.factor(PredData$Season)
 	PredData <- as.data.frame(PredData)
 
-
 	PDat1 <- PredData[,variables]
 	PDat2 <- dummyVars("~.",data=PDat1)
 	PredDat <- data.frame(predict(PDat2, newdata = PDat1))
@@ -148,7 +166,11 @@ for (i in 8:GWRange){
 	#PredDat <- normalizeData(PredDat, type="0_1")
 	colnames(PredDat) <- PredDatnames
 
-	# Now I have to dynamically filter to make up for that R mistake
+    # And the team variables don't forget!
+    Pred_Team_Vars <- vtreat::prepare(plan, PredData, pruneSig = NULL)
+    PredDat <- cbind(PredDat, Pred_Team_Vars)
+
+    # Now I have to dynamically filter to make up for that R mistake
 	# Just to be clear: R's mistake. Definitely not mine
 	Season_Col <- paste0("Season.",Season_prediction)
 	Cal_Season_Col <- as.character(unique(df[Season == Season_prediction &
@@ -241,8 +263,8 @@ for (i in 8:GWRange){
 
 #--------------- Gradient Boosting (Prediction & Context data) ---------------#
 
-	#- Fit is a column of our predicted values
-	#-Act is the actual result in terms of goal difference
+	# Fit is a column of our predicted values
+	# Act is the actual result in terms of goal difference
 	Fit <- predict(Pmod, PredDat)
 	Fit <- as.data.table(Fit)
 	# have to split up the predictions
@@ -271,13 +293,70 @@ for (i in 8:GWRange){
 	# now we are back to stitching our prediction table together
 	AggP <- cbind(div1,p1,p2,p3,p4,P_Draw,P_Opposition,P_Team)
 	colnames(AggP) <- c("League","Team", "Season", "Opposition", 
-             "Game_Week_Index", "P_Draw","P_Opposition","P_Team")
+             "Game_Week_Index", "Euro_P_Draw","Euro_P_Opposition",
+             "Euro_P_Team")
 
 	# save the results
 	PredResults <- rbindlist(list(PredResults,AggP))
-
+    print(i)
 }
 
+#--------------------- Export and merge to the calc data ---------------------#
+# read in the existing calc data
+setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
+    "Europe/Output Data"))
+Calc_df <- read.csv("Europe Calc Data Output.csv", header = TRUE)
+Calc_df <- setDT(Calc_df)
+# merge our results
+Calc_df <- merge(Calc_df, PredResults, by = c('Season', 'Team', 
+                            'Opposition', 'Game_Week_Index'), all.x = T)
+# Calculate actual vs predicted metrics
+Calc_df[, Euro_Cl_Pred_Outcome := 0]
+Calc_df[Euro_P_Team > Euro_P_Opposition & Euro_P_Team > Euro_P_Draw,
+                                            Euro_Cl_Pred_Outcome := 1]
+Calc_df[Euro_P_Opposition > Euro_P_Team & Euro_P_Opposition > Euro_P_Draw,
+                                            Euro_Cl_Pred_Outcome := -1]
+Calc_df[, Euro_Cl_Same := 0]
+Calc_df[Actual_Outcome == Euro_Cl_Pred_Outcome, Euro_Cl_Same := 1]
+Calc_df[, Euro_Cl_Pred_Winning_Odds := 0]
+Calc_df[Euro_Cl_Pred_Outcome == -1, Euro_Cl_Pred_Winning_Odds
+                                                        := Opposition_Odds]
+Calc_df[Euro_Cl_Pred_Outcome == 1, Euro_Cl_Pred_Winning_Odds := Team_Odds]
+Calc_df[Euro_Cl_Pred_Outcome == 0, Euro_Cl_Pred_Winning_Odds := Draw_Odds]
+Calc_df[, Bets := 200]
+Calc_df[, Euro_Cl_Winnings := Bets * Euro_Cl_Pred_Winning_Odds * Euro_Cl_Same]
 
+# Send it out to play in the traffic
+write.csv(Calc_df, "Europe Calc Data Output.csv", row.names = FALSE)
 
-write.csv(PredResults, paste0("Prediction ",Season_prediction,".csv"))
+#--------------------------- Summary of results Log --------------------------#
+# A Brief History of Time:
+Model_time <- paste0('The model was run at ', lubridate::now())
+# Overall accuracy for the season:
+Calc_df <- Calc_df[complete.cases(Calc_df),]
+Accuracy <- setDT(Calc_df[Season == Season_prediction, j = list(Cor_Pred =
+  mean(Euro_Cl_Same))])
+Acc_Statement <- paste0('The accuracy is ', Accuracy)
+# type of model run
+Model_Type <- 'This is a: European Classification XGBoost'
+# Any Notes
+Notes <- 'most significant variables, all vars'
+# Straight Profitability
+Profit <- setDT(Calc_df[Season == Season_prediction, j = list(
+sum(Euro_Cl_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
+sum(Bets))])
+Profit_Statement <- paste0('Profits are ', Profit)
+# change variable storage so it's a prettier list
+variables <- paste(variables, collapse = ",")
+# Create a summary
+Summary <- c(Model_time, Acc_Statement, Model_Type, Notes, variables,
+             Profit_Statement)
+Summary <- as.data.frame(Summary)
+# Read in log
+Results_Log <- read.csv('Results Log.csv')
+# add on to the end
+Results_Log <- rbind(Results_Log, Summary)
+# and publish
+write.csv(Results_Log, 'Results Log.csv', row.names = F)
+
+#------------------------------------ fin ------------------------------------#

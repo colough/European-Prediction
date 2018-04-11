@@ -1,8 +1,8 @@
 #---- this file creates an XGBoost classification model for European data -----#
 
-##############################################################################
-#------------------------------Package Loading-------------------------------#
-##############################################################################
+###############################################################################
+#------------------------------Package Loading--------------------------------#
+###############################################################################
 # You wouldn't go shopping without your wallet, don't forget your packages
 require(pls)
 require(data.table)
@@ -194,7 +194,7 @@ StatResults <- data.frame()
 	setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 	#setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
 
-#------------------ Neural Network (select best parameters) -------------------#
+#------------------ Neural Network (select best parameters) ------------------#
 	# this is a little messy but we summarize the optimal fits
 	for (p in 1:length(r$extract)){
         a <- unlist(r$extract[[p]])
