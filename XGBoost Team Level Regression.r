@@ -1,8 +1,8 @@
-#---- this file creates an XGBoost classification model for European data -----#
+#---- this file creates an XGBoost classification model for European data ----#
 
-##############################################################################
-#------------------------------Package Loading-------------------------------#
-##############################################################################
+###############################################################################
+#------------------------------Package Loading--------------------------------#
+###############################################################################
 # You wouldn't go shopping without your wallet, don't forget your packages
 require(pls)
 require(data.table)
@@ -18,9 +18,9 @@ require(mlrMBO)
 require(devtools)
 require(vtreat)
 
-##############################################################################
-#-----------------------------Parameter Settings-----------------------------#
-##############################################################################
+###############################################################################
+#-----------------------------Parameter Settings------------------------------#
+###############################################################################
 # what Season are we predicting? (Enter numeric)
 Season_prediction <- 20152016
 # Are we doing a single market or Europe wide?
@@ -31,26 +31,26 @@ League <- c('D1','E0', 'F1', 'SP1', 'I1')
 # How many games in a season?
 GWRange <- 38 #- 38 games in a season son
 
-##############################################################################
-#--------------------------------Data Loading--------------------------------#
-##############################################################################
+###############################################################################
+#--------------------------------Data Loading---------------------------------#
+###############################################################################
 
 # which project folder we want to work in
-#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-#setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/",
+      "Output Data"))
 df <- read.csv("Europe Prepped Output.csv", header = TRUE)
 df <- as.data.table(df)
 #df <- df[complete.cases(df),]
-#--------------------------- Apply Seasonal Filters ---------------------------#
+#-------------------------- Apply Seasonal Filters ---------------------------#
 # convert to numeric
 df$Season <- gsub(" ", "", df$Season)
 df$Season <- as.numeric(df$Season)
 df <- df[Season <= Season_prediction,]
 
-#---------------------------- Apply Market Filters ----------------------------#
+#---------------------------- Apply Market Filters ---------------------------#
 df <- df[Div %in% League]
 
-#----------------------------- Apply Team Filters -----------------------------#
+#----------------------------- Apply Team Filters ----------------------------#
 # Only want to build models for teams who are in current season
 Teams <- unique(df[Season == max(df$Season),HomeTeam])
 # Can only take teams whose first season isn't the one currently predicting:
@@ -70,13 +70,14 @@ df <- df[df$AwayTeam %in% Teams$HomeTeam,]
 PredResults <- data.frame()
 StatResults <- data.frame()
 
-################################################################################
-#--------------------------------Model Building--------------------------------#
-################################################################################
+###############################################################################
+#--------------------------------Model Building-------------------------------#
+###############################################################################
 
 # ok so this is the meat of the action where for every league we...
 for(j in 1:length(League)){
-#------------------- Loop through every team and gameweek ---------------------#
+
+#------------------ Loop through every team and gameweek ---------------------#
 dt <- df[Div %in% League[j]]
 League_Teams <- unique(dt[Season == max(dt$Season),HomeTeam])
 dt$Team <- as.character(dt$Team)
@@ -84,10 +85,11 @@ dt$Team <- as.character(dt$Team)
 
 		 for (i in 8:max(dt$Game_Week_Index)){
 			 #i=17
-#------------------ Define and transform model training set -------------------#
-			ModTrain1 <- dt[Season < Season_prediction & Team == League_Teams[k],]
-			ModTrain2 <- dt[Season == Season_prediction & Team == League_Teams[k]
-														& Game_Week_Index < i,]
+#----------------- Define and transform model training set -------------------#
+            ModTrain1 <- dt[Season < Season_prediction &
+                            Team == League_Teams[k],]
+			ModTrain2 <- dt[Season == Season_prediction &
+                            Team == League_Teams[k]  & Game_Week_Index < i,]
 			ModTrain <- rbindlist(list(ModTrain1,ModTrain2))
 			ModTrain <- ModTrain[Game_Week_Index >= 7,]
 			# we'll create a couple of extra variables to make things a little
@@ -98,41 +100,57 @@ dt$Team <- as.character(dt$Team)
 										ModTrain$Team_Odds
 			# Turn Seasons back into a factor so we can use it in the model
 			ModTrain$Season <- as.factor(ModTrain$Season)
+            ModTrain <- as.data.frame(ModTrain)
+            # Define the variables to be used and then create numeric dummies
+            variables <- c('Season', 'Team_Favourite', 'Relative_Form',
+            'Opposition_Shots_Conceded_Form', 'Team_Goals_Scored_Form',
+            'Opposition_Goals_Scored_Form', 'Home_Away', 'Match_Tier',
+            'Team_Goals_Conceded_Form', 'Opposition_Goals_Conceded_Form',
+            'Team_Odds', 'Opposition_Odds', 'Poisson_Result', 'Regress_Result',
+            'Team_Shots_Conceded_Form','Team_Handicap', 'Relative_Odds')
+            TDat1 <- ModTrain[, variables]
+            TDat2 <- dummyVars("~.", data = TDat1)
+            TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
+            #- now we need to normalize the training data
+            TrainDatnames <- colnames(TrainDat)
+            #TrainDat <- normalizeData(TrainDat, type="0_1")
+            colnames(TrainDat) <- TrainDatnames
 
-			ModTrain <- as.data.frame(ModTrain)
-			# Define the variables to be used and then create numeric dummies
-			variables <- c('Season','Calendar_Season','Match_Tier','Home_Away',
-			'Poisson_Result','Regress_Result','Relative_Form',
-			'Team_Handicap','Relative_Odds')
-			TDat1 <- ModTrain[,variables]
-			Dependent <- data.frame(ModTrain$Team_Goal_Diff)
-			TDat1 <- cbind(TDat1, Dependent)
-			colnames(TDat1)[10] <- "Dependent"
-			cfe <- vtreat::mkCrossFrameNExperiment(TDat1, c('Season',
-			'Calendar_Season','Match_Tier','Home_Away','Poisson_Result',
-			'Regress_Result','Relative_Form','Team_Handicap','Relative_Odds'),
-			"Dependent")
-			vtariables <- c('Season_catN','Calendar_Season_catN','Match_Tier_catN'
-			,'Home_Away_lev_x.Away','Home_Away_lev_x.Home','Poisson_Result_clean',
-			'Regress_Result_clean','Relative_Form_clean','Team_Handicap_clean',
-			'Relative_Odds_clean')
-			plan <- cfe$treatments
-			TrainDat <- cfe$crossFrame
-			TrainDat <- TrainDat[,vtariables]
-			# join the Dependent variable
-			Dependent <- data.frame(ModTrain$Team_Goal_Diff)
-		 	TrainDat <- cbind(TrainDat, Dependent)
-			# ok so to start modelling we have to declare a so called 'task',
-			# with the dependent and independent variables called out
-			TrainDat <- as.data.frame(TrainDat)
-			trainTask <- makeRegrTask(data = TrainDat,
-									target = "ModTrain.Team_Goal_Diff")
+            # Get the mean encoded team variables
+            TDat3 <- ModTrain
+            Dependent <- data.frame(ModTrain$Team_Goal_Diff)
+            TDat3 <- cbind(TDat3, Dependent)
+            colnames(TDat3)[ncol(TDat3)] <- "Dependent"
+            Team_variables <- c('Opposition')
+            cfe <- vtreat::mkCrossFrameNExperiment(TDat3, Team_variables,
+                                            "Dependent")
+            plan <- cfe$treatments
+            Team_Vars <- cfe$crossFrame
+            codes <- c('lev', 'catN', 'clean', 'isBAD')
+            Team_Vars <- Team_Vars[, grep(paste(codes, collapse = "|"),
+                                    colnames(Team_Vars), value = TRUE)]
 
-		  	Agg_Results <- data.frame()
-#----------------- Gradient Boosting (Create prediction data) -----------------#
+            # Add in the mean encoded variables
+            TrainDat <- cbind(TrainDat, Team_Vars)
+
+            # same for the Dependent variable
+            Dependent <- data.frame(ModTrain$Team_Goal_Diff)
+            # for this package it wants a single column with the the three 
+            # groups to classify
+            TrainDat <- cbind(TrainDat, Dependent)
+
+            # ok so to start modelling we have to declare a so called 'task', 
+            # with the dependent and independent variables called out
+            TrainDat <- as.data.frame(TrainDat)
+            TrainDat[is.na(TrainDat)] <- 0
+            trainTask <- makeRegrTask(data = TrainDat,
+                            target = "ModTrain.Team_Goal_Diff")
+
+            Agg_Results <- data.frame()
+#---------------- Gradient Boosting (Create prediction data) -----------------#
 			# Filter to the data that we actually want to predict
-			PredData <- dt[Season == Season_prediction & Team == League_Teams[k]
-														& Game_Week_Index == i,]
+			PredData <- dt[Season == Season_prediction &
+                           Team == League_Teams[k] & Game_Week_Index == i,]
 
 			# add in some juicy details
 			PredData$Relative_Form <- PredData$Team_Form -
@@ -143,8 +161,8 @@ dt$Team <- as.character(dt$Team)
 			PredData$Season <- as.factor(PredData$Season)
 			PredData <- as.data.frame(PredData)
 
-			# not every team play in every game week so if there's nothing to predict
-			# then there's no point building a model, so in that case we ignore
+			# not every team play in every game week so if there's nothing to 
+            # predict then there's no point building a model, so in that case we ignore
 			# everything below and move on to the next week
 			if(nrow(PredDat) > 0){
 			# apply the same treatments to the pred data as has been done to the
