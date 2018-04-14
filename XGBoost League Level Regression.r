@@ -98,9 +98,12 @@ StatResults <- data.frame()
 
 		ModTrain <- as.data.frame(ModTrain)
 		# Define the variables to be used and then create numeric dummies
-		variables <- c('Season','Calendar_Season','Match_Tier','Home_Away',
-		'Poisson_Result','Regress_Result','Relative_Form',
-		'Team_Handicap','Relative_Odds')
+        variables <- c('Season', 'Team_Favourite', 'Team_Shots_Conceded_Form',
+        'Opposition_Shots_Conceded_Form', 'Team_Goals_Scored_Form',
+        'Opposition_Goals_Scored_Form', 'Home_Away', 'Match_Tier',
+        'Team_Goals_Conceded_Form', 'Opposition_Goals_Conceded_Form',
+        'Team_Odds', 'Opposition_Odds', 'Poisson_Result', 'Regress_Result',
+        'Team_Handicap', 'Relative_Odds', 'Relative_Form')
 		TDat1 <- ModTrain[,variables]
 		TDat2 <- dummyVars("~.",data=TDat1)
 		TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
@@ -306,7 +309,7 @@ StatResults <- data.frame()
 		ResP1$Act <- ifelse(Resers$Act >0,1,ifelse(Resers$Act < 0, -1, 0))
 		# get rid of the temp column cause things are cool now size wise
 		ResP1 <- ResP1[,-1]
-		head(ResP1)
+		
 		ResP1 <- as.data.frame(ResP1)
 
 		# ok shtuff gets a bit mad here so pay attention:
@@ -416,7 +419,7 @@ StatResults <- data.frame()
 # read in the existing calc data
 setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
     "Europe/Output Data"))
-Calc_df <- read.csv("Europe Calc Data.csv", header = TRUE)
+Calc_df <- read.csv("Europe Calc Data Output.csv", header = TRUE)
 Calc_df <- setDT(Calc_df)
 # merge our results
 Calc_df <- merge(Calc_df, PredResults, by = c('Season', 'Team', 'Opposition',
@@ -431,6 +434,7 @@ Calc_df[, League_Pred_Winning_Odds := 0]
 Calc_df[League_Pred_Outcome == -1, League_Pred_Winning_Odds := Opposition_Odds]
 Calc_df[League_Pred_Outcome == 1, League_Pred_Winning_Odds := Team_Odds]
 Calc_df[League_Pred_Outcome == 0, League_Pred_Winning_Odds := Draw_Odds]
+Calc_df[, League_Winnings := Bets * League_Pred_Winning_Odds * League_Same]
 
 # Send it out to play in the traffic
 write.csv(Calc_df, "Europe Calc Data Output.csv", row.names = FALSE)
@@ -441,7 +445,7 @@ Model_time <- paste0('The model was run at ', lubridate::now())
 # Overall accuracy for the season:
 Calc_df <- Calc_df[complete.cases(Calc_df),]
 Accuracy <- setDT(Calc_df[Season == Season_prediction, j = list(Cor_Pred =
-  mean(Euro_Same))])
+  mean(League_Same))])
 Acc_Statement <- paste0('The accuracy is ', Accuracy)
 # type of model run
 Model_Type <- 'This is a: League Regression XGBoost'
@@ -449,7 +453,7 @@ Model_Type <- 'This is a: League Regression XGBoost'
 Notes <- 'most significant variables, all vars'
 # Straight Profitability
 Profit <- setDT(Calc_df[Season == Season_prediction, j = list(
-sum(Euro_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
+sum(League_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
 sum(Bets))])
 Profit_Statement <- paste0('Profits are ', Profit)
 # change variable storage so it's a prettier list
