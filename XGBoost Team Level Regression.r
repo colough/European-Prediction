@@ -31,8 +31,13 @@ League <- c('D1','E0', 'F1', 'SP1', 'I1')
 # How many games in a season?
 GWRange <- 38 #- 38 games in a season son
 
+# type of model run
+Model_Type <- 'This is a: League Regression XGBoost'
+# Any Notes
+Notes <- 'most significant variables, all vars'
+
 ###############################################################################
-#--------------------------------Data Loading---------------------------------#
+#------------------------------- Data Loading --------------------------------#
 ###############################################################################
 
 # which project folder we want to work in
@@ -84,8 +89,9 @@ dt$Team <- as.character(dt$Team)
 	for(k in 1:length(League_Teams)){
 
 		 for (i in 8:max(dt$Game_Week_Index)){
-			 #i=17
+			 
 #----------------- Define and transform model training set -------------------#
+
             ModTrain1 <- dt[Season < Season_prediction &
                             Team == League_Teams[k],]
 			ModTrain2 <- dt[Season == Season_prediction &
@@ -147,10 +153,21 @@ dt$Team <- as.character(dt$Team)
                             target = "ModTrain.Team_Goal_Diff")
 
             Agg_Results <- data.frame()
+
 #---------------- Gradient Boosting (Create prediction data) -----------------#
-			# Filter to the data that we actually want to predict
-			PredData <- dt[Season == Season_prediction &
-                           Team == League_Teams[k] & Game_Week_Index == i,]
+            # Create the prediction dataset
+             PredData <- dt[Team == League_Teams[k] & Game_Week_Index == i &
+                            Season == Season_prediction,]
+
+            # not every team play in every game week so if there's nothing to 
+            # predict then there's no point building a model, so in that case
+            # we ignore everything below and move on to the next week
+            if (nrow(PredData) > 0) {
+
+            # The below restates PredData because the dummy process throws a 
+            # stupid error when there's only one line. And that's not my 
+            # opinion, it's objectively stupid.
+            PredData <- dt[Team == League_Teams[k] & Game_Week_Index == i,]
 
 			# add in some juicy details
 			PredData$Relative_Form <- PredData$Team_Form -
@@ -161,22 +178,50 @@ dt$Team <- as.character(dt$Team)
 			PredData$Season <- as.factor(PredData$Season)
 			PredData <- as.data.frame(PredData)
 
-			# not every team play in every game week so if there's nothing to 
-            # predict then there's no point building a model, so in that case we ignore
-			# everything below and move on to the next week
-			if(nrow(PredDat) > 0){
-			# apply the same treatments to the pred data as has been done to the
-			# training data
-			PredDat <- vtreat::prepare(plan, PredData, pruneSig = NULL)
+            PDat1 <- PredData[, variables]
+            PDat2 <- dummyVars("~.", data = PDat1)
+            PredDat <- data.frame(predict(PDat2, newdata = PDat1))
+            # now we need to normalize the prediction data
+            PredDatnames <- colnames(PredDat)
+            #PredDat <- normalizeData(PredDat, type="0_1")
+            colnames(PredDat) <- PredDatnames
+
+            # And the team variables don't forget!
+             Pred_Team_Vars <- tryCatch({ vtreat::prepare(plan,
+                                        PredData, pruneSig = NULL)
+            },
+            error = function(Pred_Team_Vars)
+                { Pred_Team_Vars <<- data.frame()
+                return(Pred_Team_Vars)
+            })
+             if (length(Pred_Team_Vars) > 0) {
+                 PredDat <- cbind(PredDat, Pred_Team_Vars)
+             } else {
+                 PredDat <- PredDat
+             }
+            
+
+            # Now I have to dynamically filter to make up for that R mistake
+            # Just to be clear: R's mistake. Definitely not mine
+            Season_Col <- paste0("Season.", Season_prediction)
+            Cal_Season_Col <- as.character(unique(dt[
+            Season == Season_prediction & Game_Week_Index == i,
+            Calendar_Season]))
+            PredDat <- PredDat[PredDat[, eval(Season_Col)] == 1,]
+
+            
+			# apply the same treatments to the pred data as has been done to 
+            # the training data
+			
 			PredDat <- as.matrix(PredDat)
 			PredDat <- xgboost::xgb.DMatrix(PredDat)
 
 
-#----------------- Gradient Boosting (Hyperparameter Tuning) ------------------#
+#---------------- Gradient Boosting (Hyperparameter Tuning) ------------------#
 
 			# When doing Hyperparameter tuning we need to save the model in a
 			# local folder so we temporarily move to the below
-			#setwd ("C:/Users/coloughlin/Documents/Temp/Update/Football Predictions/Europe")
+			
 			setwd ("C:/Users/ciana/Documents/Football Predictions/Europe")
 
 			parallelStartSocket(3)
@@ -204,11 +249,12 @@ dt$Team <- as.character(dt$Team)
 			parallelStop()
 			proc.time()-ptm
 			# Bring it back
-			#setwd ("C:/Users/coloughlin/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
-			setwd ("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/Europe/Output Data")
+            setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/",
+            "Football Predictions/Europe/Output Data"))
 
-#---------------- Gradient Boosting (select best parameters) ------------------#
-			# this is a little messy but we summarize the optimal fits
+#--------------- Gradient Boosting (select best parameters) ------------------#
+
+            # this is a little messy but we summarize the optimal fits
 			for (p in 1:length(r$extract)){
 			    a <- unlist(r$extract[[p]])
 			    nrounds <- a$x.nrounds
@@ -221,8 +267,8 @@ dt$Team <- as.character(dt$Team)
 			    colsample_bytree <- a$x.colsample_bytree
 			    objective <- "reg:linear"
 				Classifier_Results <- as.data.frame(cbind(nrounds, max_depth,
-				lambda,eta, Score, subsample, min_child_weight, colsample_bytree
-				, objective))
+                lambda, eta, Score, subsample, min_child_weight,
+                colsample_bytree, objective))
 				Agg_Results <- rbindlist(list(Agg_Results,Classifier_Results),
 				fill=T)
 				}
@@ -233,30 +279,37 @@ dt$Team <- as.character(dt$Team)
 			# find the most accurate row
 			Agg_Results$Score <- as.numeric(as.character(Agg_Results$Score))
 			Model_Structure <- Agg_Results[which.min(Agg_Results$Score),]
-			# Transform Traindat back to being just numeric for the actual model build
-			TrainDat <- TrainDat[,-ncol(TrainDat)]
+			# Transform Traindat back to being just numeric for 
+            # the actual model build
+            TrainDat <- TrainDat[,-ncol(TrainDat)]
 
-#----------------- Gradient Boosting (build best model type) ------------------#
-			PM_nrounds <- as.numeric(as.character(Model_Structure$nrounds))
+#---------------- Gradient Boosting (build best model type) ------------------#
+
+            PM_nrounds <- as.numeric(as.character(Model_Structure$nrounds))
 			PM_max_depth <- as.numeric(as.character(Model_Structure$max_depth))
 			PM_lambda <- as.numeric(as.character(Model_Structure$lambda))
 			PM_eta <- as.numeric(as.character(Model_Structure$eta))
 			PM_subsample <- as.numeric(as.character(Model_Structure$subsample))
-			PM_min_child_weight <- as.numeric(as.character(Model_Structure$min_child_weight))
-			PM_colsample_bytree <- as.numeric(as.character(Model_Structure$colsample_bytree))
+            PM_min_child_weight <- as.numeric(as.character(
+                                    Model_Structure$min_child_weight))
+            PM_colsample_bytree <- as.numeric(as.character(
+                                    Model_Structure$colsample_bytree))
 			PM_objective <- as.character(Model_Structure$objective)
 
 			TrainDat <- as.matrix(TrainDat)
 			Dependent <- as.matrix(Dependent)
 			dTrain <- xgboost::xgb.DMatrix(TrainDat, label = Dependent)
-			param <- list(max_depth = PM_max_depth, lambda = PM_lambda, eta = PM_eta,
-					subsample = PM_subsample, min_child_weight = PM_min_child_weight,
-					colsample_bytree = PM_colsample_bytree)
-			Pmod <- xgboost::xgb.train(param, dTrain, , nrounds = PM_nrounds,
+            param <- list(max_depth = PM_max_depth, lambda = PM_lambda,
+            eta = PM_eta, subsample = PM_subsample,
+            min_child_weight = PM_min_child_weight,
+            colsample_bytree = PM_colsample_bytree)
+
+            Pmod <- xgboost::xgb.train(param, dTrain, , nrounds = PM_nrounds,
 								objective = PM_objective)
 
-#----------------- Gradient Boosting (Find optimal c-values) ------------------#
-			# Fit is a matrix of predicted values for each principle component
+#---------------- Gradient Boosting (Find optimal c-values) ------------------#
+
+            # Fit is a matrix of predicted values for each principle component
 			# Act is the actual result in terms of goal difference
 			iter <- which.min(Agg_Results$Score)
 			Resers <- as.data.frame(r$pred)
@@ -274,20 +327,22 @@ dt$Team <- as.character(dt$Team)
 			CValues <- cbind(CVala,CValb)
 			CValues <- as.data.frame(CValues)
 
-			# now we run a for loop which goes through the C-value combinations and checks
-			# what the story is with the old accuracy levels, for each combination we want
-			# to figure out what the maximum accuracy achieved is and then we want to see
-			# where the elbow point is for the pc's we'll get that by looking at where
-			# there's the greatest increase in predictions and take the first one
-
+			# now we run a for loop which goes through the C-value combinations
+            # and checks what the story is with the old accuracy levels, for 
+            # each combination we want to figure out what the maximum accuracy 
+            # achieved is and then we want to see where the elbow point is for 
+            # the pc's we'll get that by looking at where there's the greatest 
+            # increase in predictions and take the first one
 			a <- nrow(Resers)
 			b <- ncol(Resers)
 
-			# Create ResP1 which is the actual goal difference transformed in to class
-			# results (-1,0,1) first column of our new dataframe will be the actual result
-			ResP1 <- data.frame()
-			# just create this as a temporary measure so that things are the right size
-			ResP1 <- rep(1,nrow(Resers))
+			# Create ResP1 which is the actual goal difference transformed in
+            # to class results (-1,0,1) first column of our new dataframe will 
+            # be the actual result
+            ResP1 <- data.frame()
+			# just create this as a temporary measure so that things are the 
+            # right size
+            ResP1 <- rep(1,nrow(Resers))
 			ResP1 <- as.data.frame(ResP1)
 			# classify the actual goal difference into the results
 			ResP1$Act <- ifelse(Resers$Act >0,1,ifelse(Resers$Act < 0, -1, 0))
@@ -314,8 +369,8 @@ dt$Team <- as.character(dt$Team)
 				SuSt <- rep(1,a)
 				SuSt <- as.data.frame(SuSt)
 				for (k in 2:ncol(ResP1)){
-					# but now what we want to do is create a "truth" matrix where
-					# 1 indicates a correct prediction
+					# but now what we want to do is create a "truth" matrix 
+                    # where 1 indicates a correct prediction
 					SuSt[,k-1] <- ifelse(ResP1[,k] == ResP1[,1],1,0)
 					}
 				TempSt <- as.data.frame(1)
@@ -329,13 +384,14 @@ dt$Team <- as.character(dt$Team)
 				# this is the max accuracy level
 				M1 <- max(TempSt[2,])
 				TempStp1 <- as.data.frame(1)
-				# TempSp1 tells us the where the elbow points are for the principle components
-				#for (m in 2:ncol(TempSt)){
+				# TempSp1 tells us the where the elbow points are for the 
+                # principle components
+                #for (m in 2:ncol(TempSt)){
 				#	TempStp1[,m-1] <- TempSt[1,m] - TempSt[1,m-1]
 				#	}
 
-				# it's plus one because the first column is ignored because it can't be the
-				# elbow
+				# it's plus one because the first column is ignored because it 
+                # can't be the elbow
 				M2 <- match(max(TempStp1),TempStp1)+1
 				# what's the highest accuracy achieved by the principle components
 				M3 <- match(M1, TempSt[2,])
@@ -348,8 +404,8 @@ dt$Team <- as.character(dt$Team)
 				TempStp2[,5] <- M2 # the Elbow P.C
 				TempStp2[,6] <- M3 # the maximum accuracy
 
-			# then if this is the first set of C-Values we're running through save ToSt as
-			# TempStp2 else tack it on at the end
+			# then if this is the first set of C-Values we're running through 
+            # save ToSt as TempStp2 else tack it on at the end
 				if(d == 1){
 					ToSt<- TempStp2
 					}else{
@@ -358,9 +414,10 @@ dt$Team <- as.character(dt$Team)
 
 
 			}
-		# rename the matrix that has the different results based on all the c-values
-		colnames(ToSt) <- c("Team", "Pos C-Value", "Neg C-Value", "Max Accuracy",
-		 										"Elbow P.C", "Max Acc P.C")
+		# rename the matrix that has the different results based on all the 
+        # c - values
+        colnames(ToSt) <- c("Team", "Pos C-Value", "Neg C-Value", 
+		 						"Max Accuracy", "Elbow P.C", "Max Acc P.C")
 
 		# this is the row where the maximum accuracy is across the c-values
 		PC1 <- match(max(ToSt[,4]),ToSt[,4])
@@ -404,5 +461,55 @@ dt$Team <- as.character(dt$Team)
 	} # end for loop on Team
 } # end for loop on League
 
-write.csv(PredResults, paste0("Prediction Regression by Team and League",
-													Season_prediction,".csv"))
+#-------------------- Export and merge to the calc data ----------------------#
+# read in the existing calc data
+setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
+    "Europe/Output Data"))
+Calc_df <- read.csv("Europe Calc Data Output.csv", header = TRUE)
+Calc_df <- setDT(Calc_df)
+# merge our results
+Calc_df <- merge(Calc_df, PredResults, by = c('Season', 'Team', 'Opposition',
+                            'Game_Week_Index'), all.x = T)
+# Calculate actual vs predicted metrics
+Calc_df[, League_Pred_Outcome := 0]
+Calc_df[League_Prediction >= League_Pos_C_Value, League_Pred_Outcome := 1]
+Calc_df[League_Prediction <= League_Neg_C_Value * -1, League_Pred_Outcome := -1]
+Calc_df[, League_Same := 0]
+Calc_df[Actual_Outcome == League_Pred_Outcome, League_Same := 1]
+Calc_df[, League_Pred_Winning_Odds := 0]
+Calc_df[League_Pred_Outcome == -1, League_Pred_Winning_Odds := Opposition_Odds]
+Calc_df[League_Pred_Outcome == 1, League_Pred_Winning_Odds := Team_Odds]
+Calc_df[League_Pred_Outcome == 0, League_Pred_Winning_Odds := Draw_Odds]
+Calc_df[, League_Winnings := Bets * League_Pred_Winning_Odds * League_Same]
+
+# Send it out to play in the traffic
+write.csv(Calc_df, "Europe Calc Data Output.csv", row.names = FALSE)
+
+#--------------------------- Summary of results Log --------------------------#
+# A Brief History of Time:
+Model_time <- paste0('The model was run at ', lubridate::now())
+# Overall accuracy for the season:
+Calc_df <- Calc_df[complete.cases(Calc_df),]
+Accuracy <- setDT(Calc_df[Season == Season_prediction, j = list(Cor_Pred =
+  mean(League_Same))])
+Acc_Statement <- paste0('The accuracy is ', Accuracy)
+
+# Straight Profitability
+Profit <- setDT(Calc_df[Season == Season_prediction, j = list(
+sum(League_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
+sum(Bets))])
+Profit_Statement <- paste0('Profits are ', Profit)
+# change variable storage so it's a prettier list
+variables <- paste(variables, collapse = ",")
+# Create a summary
+Summary <- c(Model_time, Acc_Statement, Model_Type, Notes, variables,
+             Profit_Statement)
+Summary <- as.data.frame(Summary)
+# Read in log
+Results_Log <- read.csv('Results Log.csv')
+# add on to the end
+Results_Log <- rbind(Results_Log, Summary)
+# and publish
+write.csv(Results_Log, 'Results Log.csv', row.names = F)
+
+#------------------------------------ fin ------------------------------------#
