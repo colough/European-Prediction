@@ -26,13 +26,13 @@ Season_prediction <- 20152016
 # Are we doing a single market or Europe wide?
 # Take away any leagues you don't want included:
 # Full List: League <- c('D1','E0', 'F1', 'SP1', 'I1')
-League <- c('D1','E0', 'F1', 'SP1', 'I1')
+League <- c('D1', 'E0', 'F1', 'SP1', 'I1')
 
 # How many games in a season?
 GWRange <- 38 #- 38 games in a season son
 
 # type of model run
-Model_Type <- 'This is a: League Regression XGBoost'
+Model_Type <- 'This is a: Team Regression XGBoost'
 # Any Notes
 Notes <- 'most significant variables, all vars'
 
@@ -83,9 +83,10 @@ StatResults <- data.frame()
 for(j in 1:length(League)){
 
 #------------------ Loop through every team and gameweek ---------------------#
-dt <- df[Div %in% League[j]]
-League_Teams <- unique(dt[Season == max(dt$Season),HomeTeam])
-dt$Team <- as.character(dt$Team)
+    dt <- df[Div %in% League[j]]
+    League_Teams <- unique(dt[Season == max(dt$Season),HomeTeam])
+    dt$Team <- as.character(dt$Team)
+
 	for(k in 1:length(League_Teams)){
 
 		 for (i in 8:max(dt$Game_Week_Index)){
@@ -158,11 +159,17 @@ dt$Team <- as.character(dt$Team)
             # Create the prediction dataset
              PredData <- dt[Team == League_Teams[k] & Game_Week_Index == i &
                             Season == Season_prediction,]
-
             # not every team play in every game week so if there's nothing to 
             # predict then there's no point building a model, so in that case
             # we ignore everything below and move on to the next week
-            if (nrow(PredData) > 0) {
+
+            # oho there's more, so it turns out that there is a chance that
+            # you can have played teams every year of your involvement that
+            # get scraped out, leaving you with just one line, so we check:
+
+            CheckData <- dt[Team == League_Teams[k] & Game_Week_Index == i,]
+
+            if (nrow(PredData) > 0 & nrow(CheckData) > 1) {
 
             # The below restates PredData because the dummy process throws a 
             # stupid error when there's only one line. And that's not my 
@@ -368,10 +375,10 @@ dt$Team <- as.character(dt$Team)
 				# as above
 				SuSt <- rep(1,a)
 				SuSt <- as.data.frame(SuSt)
-				for (k in 2:ncol(ResP1)){
+				for (w in 2:ncol(ResP1)){
 					# but now what we want to do is create a "truth" matrix 
                     # where 1 indicates a correct prediction
-					SuSt[,k-1] <- ifelse(ResP1[,k] == ResP1[,1],1,0)
+					SuSt[,w-1] <- ifelse(ResP1[,w] == ResP1[,1],1,0)
 					}
 				TempSt <- as.data.frame(1)
 				# TempSt houses the accuracy of each principle component
@@ -448,8 +455,9 @@ dt$Team <- as.character(dt$Team)
 		p5a <- predict(Pmod, PredDat)
 		p5a <- as.data.frame(p5a)
 		AggP <- cbind(p1,p2,p3,p4,p5a,ToStp[,2],ToStp[,3],ToStp[,4]) # stitched together
-		colnames(AggP) <- c("Team", "Season", "Opposition", "Game.Week.Index",
-					"Prediction", "Pos C-Value", "Neg C-Value", "Max Accuracy")
+		colnames(AggP) <- c("Team", "Season", "Opposition", "Game_Week_Index",
+                    "Team_Prediction", "Team_Pos_C_Value", "Team_Neg_C_Value",
+                "Team_Max_Accuracy")
 		# save the results
 			PredResults <- rbindlist(list(PredResults,AggP))
 		# let a worrying parent know what progress their child is making
@@ -471,16 +479,16 @@ Calc_df <- setDT(Calc_df)
 Calc_df <- merge(Calc_df, PredResults, by = c('Season', 'Team', 'Opposition',
                             'Game_Week_Index'), all.x = T)
 # Calculate actual vs predicted metrics
-Calc_df[, League_Pred_Outcome := 0]
-Calc_df[League_Prediction >= League_Pos_C_Value, League_Pred_Outcome := 1]
-Calc_df[League_Prediction <= League_Neg_C_Value * -1, League_Pred_Outcome := -1]
-Calc_df[, League_Same := 0]
-Calc_df[Actual_Outcome == League_Pred_Outcome, League_Same := 1]
-Calc_df[, League_Pred_Winning_Odds := 0]
-Calc_df[League_Pred_Outcome == -1, League_Pred_Winning_Odds := Opposition_Odds]
-Calc_df[League_Pred_Outcome == 1, League_Pred_Winning_Odds := Team_Odds]
-Calc_df[League_Pred_Outcome == 0, League_Pred_Winning_Odds := Draw_Odds]
-Calc_df[, League_Winnings := Bets * League_Pred_Winning_Odds * League_Same]
+Calc_df[, Team_Pred_Outcome := 0]
+Calc_df[Team_Prediction >= Team_Pos_C_Value, Team_Pred_Outcome := 1]
+Calc_df[Team_Prediction <= Team_Neg_C_Value * -1, Team_Pred_Outcome := -1]
+Calc_df[, Team_Same := 0]
+Calc_df[Actual_Outcome == Team_Pred_Outcome, Team_Same := 1]
+Calc_df[, Team_Pred_Winning_Odds := 0]
+Calc_df[Team_Pred_Outcome == -1, Team_Pred_Winning_Odds := Opposition_Odds]
+Calc_df[Team_Pred_Outcome == 1, Team_Pred_Winning_Odds := Team_Odds]
+Calc_df[Team_Pred_Outcome == 0, Team_Pred_Winning_Odds := Draw_Odds]
+Calc_df[, Team_Winnings := Bets * Team_Pred_Winning_Odds * Team_Same]
 
 # Send it out to play in the traffic
 write.csv(Calc_df, "Europe Calc Data Output.csv", row.names = FALSE)
@@ -496,7 +504,7 @@ Acc_Statement <- paste0('The accuracy is ', Accuracy)
 
 # Straight Profitability
 Profit <- setDT(Calc_df[Season == Season_prediction, j = list(
-sum(League_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
+sum(Team_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
 sum(Bets))])
 Profit_Statement <- paste0('Profits are ', Profit)
 # change variable storage so it's a prettier list
