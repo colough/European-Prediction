@@ -80,7 +80,7 @@ StatResults <- data.frame()
 ###############################################################################
 
 # ok so this is the meat of the action where for every league we...
-for(j in 1:length(League)){
+for(j in 2:length(League)){
 
 #------------------ Loop through every team and gameweek ---------------------#
     dt <- df[Div %in% League[j]]
@@ -167,7 +167,8 @@ for(j in 1:length(League)){
             # you can have played teams every year of your involvement that
             # get scraped out, leaving you with just one line, so we check:
 
-            CheckData <- dt[Team == League_Teams[k] & Game_Week_Index == i,]
+             CheckData <- dt[Team == League_Teams[k] & Game_Week_Index == i
+                            & Season != Season_prediction,]
 
             if (nrow(PredData) > 0 & nrow(CheckData) > 1) {
 
