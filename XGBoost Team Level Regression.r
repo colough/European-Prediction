@@ -80,7 +80,7 @@ StatResults <- data.frame()
 ###############################################################################
 
 # ok so this is the meat of the action where for every league we...
-for(j in 2:length(League)){
+for(j in 3:length(League)){
 
 #------------------ Loop through every team and gameweek ---------------------#
     dt <- df[Div %in% League[j]]

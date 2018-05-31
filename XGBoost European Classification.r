@@ -23,7 +23,7 @@ require(vtreat)
 #-----------------------------Parameter Settings------------------------------#
 ###############################################################################
 # what Season are we predicting? (Enter numeric)
-Season_prediction <- 20152016
+Season_prediction <- 20142015
 # Are we doing a single market or Europe wide?
 # Take away any leagues you don't want included:
 # Full List: League <- c('D1','E0', 'F1', 'SP1', 'I1')
