@@ -106,10 +106,11 @@ for (i in 8:GWRange){
 	ModTrain <- as.data.frame(ModTrain)
     # Define the variables to be used and then create numeric dummies
     variables <- c('Season', 'Team_Favourite', 'Team_Shots_Conceded_Form',
-        'Team_Goals_Scored_Form',
-        'Home_Away', 'Match_Tier',
-        'Team_Goals_Conceded_Form',
-        'Team_Odds', 'Team_Handicap')
+        'Opposition_Shots_Conceded_Form', 'Team_Goals_Scored_Form',
+        'Opposition_Goals_Scored_Form', 'Home_Away', 'Match_Tier',
+        'Team_Goals_Conceded_Form', 'Opposition_Goals_Conceded_Form',
+        'Team_Odds', 'Opposition_Odds', 'Poisson_Result', 'Regress_Result',
+        'Team_Handicap', 'Relative_Odds', 'Relative_Form')
     TDat1 <- ModTrain[, variables]
     TDat2 <- dummyVars("~.", data = TDat1)
     TrainDat <- data.frame(predict(TDat2, newdata = TDat1))
@@ -292,8 +293,8 @@ for (i in 8:GWRange){
 	# now we are back to stitching our prediction table together
 	AggP <- cbind(div1,p1,p2,p3,p4,P_Draw,P_Opposition,P_Team)
 	colnames(AggP) <- c("League","Team", "Season", "Opposition", 
-             "Game_Week_Index", "Euro_T_P_Draw","Euro_T_P_Opposition",
-             "Euro_T_P_Team")
+             "Game_Week_Index", "Euro_P_Draw","Euro_P_Opposition",
+             "Euro_P_Team")
 
 	# save the results
 	PredResults <- rbindlist(list(PredResults,AggP))
