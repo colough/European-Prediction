@@ -104,6 +104,7 @@ for (i in 8:GWRange){
 							ifelse(ModTrain$Team_Goal_Diff < 0, 0, 1))
 	ModTrain$Team_Goal_Diff <- as.factor(ModTrain$Team_Goal_Diff)
 	ModTrain <- as.data.frame(ModTrain)
+    ModTrain <- ModTrain[complete.cases(ModTrain),]
     # Define the variables to be used and then create numeric dummies
     variables <- c('Season', 'Team_Favourite', 'Team_Shots_Conceded_Form',
         'Opposition_Shots_Conceded_Form', 'Team_Goals_Scored_Form',

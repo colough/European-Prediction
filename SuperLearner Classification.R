@@ -140,6 +140,7 @@ for (i in 8:GWRange) {
     # ok so to start modelling we have to declare a so called 'task', with the
     # dependent and independent variables called out
     TrainDat <- as.data.frame(TrainDat)
+    TrainDat <- TrainDat[complete.cases(TrainDat),]
     trainTask <- makeClassifTask(data = TrainDat,
                     target = "ModTrain.Team_Goal_Diff")
 
@@ -178,9 +179,9 @@ for (i in 8:GWRange) {
     Cal_Season_Col <- as.character(unique(df[Season == Season_prediction &
                 Game_Week_Index == i, Calendar_Season]))
     PredDat <- PredDat[PredDat[, eval(Season_Col)] == 1,]
-
-    PredDat <- as.matrix(PredDat)
-    PredDat <- xgboost::xgb.DMatrix(PredDat)
+    
+    #PredDat <- as.matrix(PredDat)
+    #PredDat <- xgboost::xgb.DMatrix(PredDat)
 
 #----------------- Gradient Boosting (Hyperparameter Tuning) -----------------#
 
@@ -190,8 +191,13 @@ for (i in 8:GWRange) {
 
     parallelStartSocket(3)
     ptm <- proc.time()
+    # Let's make a learner. Together.
+    xg_mod <- makeLearner("classif.xgboost", predict.type = "prob")
+    xg_mod$par.vals <- list(objective = "multi:softprob", eval_metric = "merror",
+                            nrounds = 50) 
+    # refine the parameter values
     ps = makeParamSet(
-    makeIntegerParam("nrounds", lower = 1, upper = 30),
+    makeIntegerParam("nrounds", lower = 1, upper = 100),
     makeIntegerParam("max_depth", lower = 3, upper = 10),
     makeNumericParam("lambda", lower = 0.55, upper = 0.60),
     makeNumericParam("eta", lower = 0.001, upper = 0.1),
@@ -204,82 +210,37 @@ for (i in 8:GWRange) {
     ctrl = makeTuneControlMBO()
     inner = makeResampleDesc("Subsample", iters = 3)
     # Tuning in Inner resampling loop
-    lrn = makeTuneWrapper("classif.xgboost", resampling = inner, par.set = ps,
-                                control = ctrl, show.info = FALSE)
+    #lrn = makeTuneWrapper("classif.xgboost", resampling = inner, par.set = ps,
+    #                            control = ctrl, show.info = FALSE)
 
     # tuning in Outer resampling loop
     outer = makeResampleDesc("CV", iters = 3)
-    r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult,
-                                                        show.info = FALSE)
+    #r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult,
+    #                                                    show.info = FALSE)
+    
+    Params <- tuneParams("classif.xgboost", task = trainTask, par.set = ps,
+                        resampling = outer, control = ctrl)
     parallelStop()
     proc.time() - ptm
     # Bring it back
     setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
           "Europe/Output Data"))
 
-#---------------- Gradient Boosting (select best parameters) -----------------#
-
-    # this is a little messy but we summarize the optimal fits
-    for (p in 1:length(r$extract)) {
-        a <- unlist(r$extract[[p]])
-        nrounds <- a$x.nrounds
-        max_depth <- a$x.max_depth
-        lambda <- a$x.lambda
-        Score <- a$y.mmce.test.mean
-        eta <- a$x.eta
-        subsample <- a$x.subsample
-        min_child_weight <- a$x.min_child_weight
-        colsample_bytree <- a$x.colsample_bytree
-        objective <- "multi:softprob"
-        Classifier_Results <- as.data.frame(cbind(nrounds, max_depth, lambda,
-        eta, Score, subsample, min_child_weight, colsample_bytree, objective))
-        Agg_Results <- rbindlist(list(Agg_Results, Classifier_Results),
-        fill = T)
-    }
-
-    # tidy up any messy bits
-    Agg_Results[is.na(Agg_Results)] <- 0
-
-    # find the most accurate row
-    Model_Structure <- Agg_Results[which.max(Agg_Results$Score),]
-    # Transform Traindat back to being just numeric for the actual model build
-    TrainDat <- TrainDat[, - ncol(TrainDat)]
-
 #----------------- Gradient Boosting (build best model type) -----------------#
-    PM_nrounds <- as.numeric(as.character(Model_Structure$nrounds))
-    PM_max_depth <- as.character(Model_Structure$max_depth)
-    PM_lambda <- as.character(Model_Structure$lambda)
-    PM_eta <- as.character(Model_Structure$eta)
-    PM_subsample <- as.character(Model_Structure$subsample)
-    PM_min_child_weight <- as.character(Model_Structure$min_child_weight)
-    PM_colsample_bytree <- as.character(Model_Structure$colsample_bytree)
-    PM_objective <- as.character(Model_Structure$objective)
 
-    TrainDat <- as.matrix(TrainDat)
-    Dependent <- as.matrix(Dependent)
-    dTrain <- xgboost::xgb.DMatrix(TrainDat, label = Dependent)
-    param <- list(max_depth = PM_max_depth, lambda = PM_lambda, eta = PM_eta,
-            subsample = PM_subsample, min_child_weight = PM_min_child_weight,
-            colsample_bytree = PM_colsample_bytree)
-    # make a makeLearner here:
-    xgboo <- makeLearner("classif.xgboost", predict.type = "prob",
-                           par.vals = param)
-
-#-------------------------- Stacked Learner Creation -------------------------#
+    xg_tuned <- setHyperPars(learner = xg_mod, par.vals = Params$x)
+    xgmodel <- train(xg_tuned, trainTask)
 
 #--------------- Gradient Boosting (Prediction & Context data) ---------------#
 
     # Fit is a column of our predicted values
     # Act is the actual result in terms of goal difference
-    Fit <- predict(Pmod, PredDat)
+    Fit <- predict(xgmodel, newdata = PredDat)
     Fit <- as.data.table(Fit)
-    # have to split up the predictions
-    Fit_index <- as.data.frame(rep(c(0, 1, 2), nrow(Fit) / 3))
-    colnames(Fit_index) <- "Fit_Index"
-    Fit <- cbind(Fit, Fit_index)
-    P_Draw <- Fit[Fit_Index == 1, 1]
-    P_Opposition <- Fit[Fit_Index == 0, 1]
-    P_Team <- Fit[Fit_Index == 2, 1]
+    
+    P_Draw <- Fit$prob.1
+    P_Opposition <- Fit$prob.0
+    P_Team <- Fit$prob.2
 
     PredData$Season <- as.numeric(PredData$Season)
     PredData <- as.data.table(PredData)
@@ -346,7 +307,7 @@ Acc_Statement <- paste0('The accuracy is ', Accuracy)
 # type of model run
 Model_Type <- 'This is a: European Classification XGBoost'
 # Any Notes
-Notes <- 'most significant variables, Team vars'
+Notes <- 'New tuning method fully embracing MLR'
 # Straight Profitability
 Profit <- setDT(Calc_df[Season == Season_prediction, j = list(
 sum(Euro_T_Cl_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
