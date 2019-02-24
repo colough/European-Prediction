@@ -1,4 +1,4 @@
-#------ this file creates an SVM classification model for European data ------#
+#- this file creates an Random Forest classification model for European data -#
 
 ###############################################################################
 #------------------------------Package Loading--------------------------------#
@@ -14,9 +14,8 @@ require(mlr)
 require(parallelMap)
 require(rgenoud)
 require(DiceKriging)
-require(parallelMap)
 require(mlrMBO)
-require(devtools)
+require(deepnet)
 require(vtreat)
 
 ###############################################################################
@@ -186,7 +185,7 @@ for (i in 8:GWRange) {
     #PredDat <- as.matrix(PredDat)
     #PredDat <- xgboost::xgb.DMatrix(PredDat)
 
-    #----------------- Gradient Boosting (Hyperparameter Tuning) -----------------#
+    #----------------- Random Forest (Hyperparameter Tuning) -----------------#
 
     # When doing Hyperparameter tuning we need to save the model in a local
     # folder so we temporarily move to the below
@@ -195,12 +194,13 @@ for (i in 8:GWRange) {
     parallelStartSocket(3)
     ptm <- proc.time()
     # Let's make a learner. Together.
-    svm_mod <- makeLearner("classif.ksvm", predict.type = "prob")
-    
+    DNN_mod <- makeLearner("classif.saeDNN", predict.type = "prob")
+
     # refine the parameter values
     ps = makeParamSet(
-    makeDiscreteParam("C", values = 2^c(-5,-3,0,3)),
-    makeDiscreteParam("kernel", values = c("rbfdot","laplacedot"))
+    makeIntegerParam("hidden", lower = 5, upper = 30)
+    #makeIntegerParam("learningrate", lower = 0.1, upper = 0.9),
+    #makeIntegerParam("momentum", lower = 0.1, upper = 0.9)
     )
     ctrl = makeTuneControlMBO()
     inner = makeResampleDesc("Subsample", iters = 3)
@@ -213,7 +213,7 @@ for (i in 8:GWRange) {
     #r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult,
     #                                                    show.info = FALSE)
 
-    Params <- tuneParams(svm_mod, task = trainTask, par.set = ps,
+    Params <- tuneParams(DNN_mod, task = trainTask, par.set = ps,
                         resampling = outer, control = ctrl, measures = acc)
     parallelStop()
     proc.time() - ptm
@@ -223,14 +223,14 @@ for (i in 8:GWRange) {
 
     #----------------- Gradient Boosting (build best model type) -----------------#
 
-    svm_tuned <- setHyperPars(learner = svm_mod, par.vals = Params$x)
-    svmmodel <- train(svm_tuned, trainTask)
+    Rf_tuned <- setHyperPars(learner = Rf_mod, par.vals = Params$x)
+    Rfmodel <- train(Rf_tuned, trainTask)
 
     #--------------- Gradient Boosting (Prediction & Context data) ---------------#
 
     # Fit is a column of our predicted values
     # Act is the actual result in terms of goal difference
-    Fit <- predict(xgmodel, newdata = PredDat)
+    Fit <- predict(Rfmodel, newdata = PredDat)
     Fit <- as.data.table(Fit)
 
     P_Draw <- Fit$prob.1

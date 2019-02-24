@@ -32,6 +32,9 @@ League <- c('D1', 'E0', 'F1', 'SP1', 'I1')
 # How many games in a season?
 GWRange <- 38 #- 38 games in a season son
 
+# The pot of gold at the end of the rainbow is called:
+Pot <- "Europe Calc Data Classification Output.csv"
+
 ###############################################################################
 #--------------------------------Data Loading---------------------------------#
 ###############################################################################
@@ -197,7 +200,7 @@ for (i in 8:GWRange) {
                             nrounds = 50) 
     # refine the parameter values
     ps = makeParamSet(
-    makeIntegerParam("nrounds", lower = 1, upper = 100),
+    makeIntegerParam("nrounds", lower = 1, upper = 250),
     makeIntegerParam("max_depth", lower = 3, upper = 10),
     makeNumericParam("lambda", lower = 0.55, upper = 0.60),
     makeNumericParam("eta", lower = 0.001, upper = 0.1),
@@ -260,8 +263,8 @@ for (i in 8:GWRange) {
     # now we are back to stitching our prediction table together
     AggP <- cbind(div1, p1, p2, p3, p4, P_Draw, P_Opposition, P_Team)
     colnames(AggP) <- c("League", "Team", "Season", "Opposition",
-        "Game_Week_Index", "Euro_P_Draw", "Euro_P_Opposition",
-        "Euro_P_Team")
+        "Game_Week_Index", "Euro_T_P_Draw", "Euro_T_P_Opposition",
+        "Euro_T_P_Team")
 
     # save the results
     PredResults <- rbindlist(list(PredResults, AggP))
@@ -272,7 +275,8 @@ for (i in 8:GWRange) {
 # read in the existing calc data
 setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
 "Europe/Output Data"))
-Calc_df <- read.csv("Europe Calc Data Output.csv", header = TRUE)
+# Here we load in the output file for the model parameter
+Calc_df <- read.csv("Europe Calc Data.csv", header = TRUE)
 Calc_df <- setDT(Calc_df)
 # merge our results
 Calc_df <- merge(Calc_df, PredResults, by = c('Season', 'Team',
@@ -294,7 +298,7 @@ Calc_df[, Bets := 200]
 Calc_df[, Euro_T_Cl_Winnings := Bets * Euro_T_Cl_Pred_Winning_Odds * Euro_T_Cl_Same]
 
 # Send it out to play in the traffic
-write.csv(Calc_df, "Europe Calc Data Output.csv", row.names = FALSE)
+write.csv(Calc_df, Pot, row.names = FALSE)
 
 #--------------------------- Summary of results Log --------------------------#
 # A Brief History of Time:

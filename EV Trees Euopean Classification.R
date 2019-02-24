@@ -1,4 +1,4 @@
-#------ this file creates an SVM classification model for European data ------#
+#- this file creates an Random Forest classification model for European data -#
 
 ###############################################################################
 #------------------------------Package Loading--------------------------------#
@@ -14,9 +14,8 @@ require(mlr)
 require(parallelMap)
 require(rgenoud)
 require(DiceKriging)
-require(parallelMap)
 require(mlrMBO)
-require(devtools)
+require(evtree)
 require(vtreat)
 
 ###############################################################################
@@ -84,7 +83,7 @@ StatResults <- data.frame()
 
 for (i in 8:GWRange) {
 
-    #------------------ Define and transform model training set ------------------#
+#------------------ Define and transform model training set ------------------#
     ModTrain1 <- df[Season < Season_prediction,]
     ModTrain2 <- df[Season == Season_prediction & Game_Week_Index < i,]
     ModTrain <- rbindlist(list(ModTrain1, ModTrain2))
@@ -149,7 +148,7 @@ for (i in 8:GWRange) {
 
     Agg_Results <- data.frame()
 
-    #---------------- Gradient Boosting (Create prediction data) -----------------#
+#---------------- Gradient Boosting (Create prediction data) -----------------#
 
     # The below line looks like a stupid mistake on my part but actually it's a
     # deliberate mistake to counter a stupid mistake on R's part
@@ -186,7 +185,7 @@ for (i in 8:GWRange) {
     #PredDat <- as.matrix(PredDat)
     #PredDat <- xgboost::xgb.DMatrix(PredDat)
 
-    #----------------- Gradient Boosting (Hyperparameter Tuning) -----------------#
+#----------------- Random Forest (Hyperparameter Tuning) -----------------#
 
     # When doing Hyperparameter tuning we need to save the model in a local
     # folder so we temporarily move to the below
@@ -195,12 +194,14 @@ for (i in 8:GWRange) {
     parallelStartSocket(3)
     ptm <- proc.time()
     # Let's make a learner. Together.
-    svm_mod <- makeLearner("classif.ksvm", predict.type = "prob")
-    
+    Evt_mod <- makeLearner("classif.evtree", predict.type = "prob")
+
     # refine the parameter values
     ps = makeParamSet(
-    makeDiscreteParam("C", values = 2^c(-5,-3,0,3)),
-    makeDiscreteParam("kernel", values = c("rbfdot","laplacedot"))
+    makeIntegerParam("maxdepth", lower = 2, upper = 7),
+    makeIntegerParam("ntrees", lower = 50, upper = 400),
+    makeNumericParam("pmutatemajor", lower = 10, upper = 40),
+    makeNumericParam("alpha", lower = 0.5, upper = 4)
     )
     ctrl = makeTuneControlMBO()
     inner = makeResampleDesc("Subsample", iters = 3)
@@ -213,7 +214,7 @@ for (i in 8:GWRange) {
     #r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult,
     #                                                    show.info = FALSE)
 
-    Params <- tuneParams(svm_mod, task = trainTask, par.set = ps,
+    Params <- tuneParams(Evt_mod, task = trainTask, par.set = ps,
                         resampling = outer, control = ctrl, measures = acc)
     parallelStop()
     proc.time() - ptm
@@ -221,16 +222,16 @@ for (i in 8:GWRange) {
     setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
           "Europe/Output Data"))
 
-    #----------------- Gradient Boosting (build best model type) -----------------#
+#----------------- Gradient Boosting (build best model type) -----------------#
 
-    svm_tuned <- setHyperPars(learner = svm_mod, par.vals = Params$x)
-    svmmodel <- train(svm_tuned, trainTask)
+    Et_tuned <- setHyperPars(learner = Et_mod, par.vals = Params$x)
+    Etmodel <- train(Et_tuned, trainTask)
 
-    #--------------- Gradient Boosting (Prediction & Context data) ---------------#
+#--------------- Gradient Boosting (Prediction & Context data) ---------------#
 
     # Fit is a column of our predicted values
     # Act is the actual result in terms of goal difference
-    Fit <- predict(xgmodel, newdata = PredDat)
+    Fit <- predict(Etmodel, newdata = PredDat)
     Fit <- as.data.table(Fit)
 
     P_Draw <- Fit$prob.1
