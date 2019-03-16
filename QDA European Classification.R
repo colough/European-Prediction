@@ -1,4 +1,4 @@
-#- this file creates an Random Forest classification model for European data -#
+#------ this file creates a QDA classification model for European data -------#
 
 ###############################################################################
 #------------------------------Package Loading--------------------------------#
@@ -32,7 +32,7 @@ League <- c('D1', 'E0', 'F1', 'SP1', 'I1')
 GWRange <- 38 #- 38 games in a season son
 
 # The pot of gold at the end of the rainbow is called:
-Pot <- "Europe Calc Data Classification Output.csv"
+Pot <- "Europe Calc Data LDA Classification Output.csv"
 
 ###############################################################################
 #--------------------------------Data Loading---------------------------------#
@@ -148,7 +148,7 @@ for (i in 8:GWRange) {
 
     Agg_Results <- data.frame()
 
-#---------------- Gradient Boosting (Create prediction data) -----------------#
+#----------------- Define and transform prediction data set ------------------#
 
     # The below line looks like a stupid mistake on my part but actually it's a
     # deliberate mistake to counter a stupid mistake on R's part
@@ -182,10 +182,7 @@ for (i in 8:GWRange) {
                 Game_Week_Index == i, Calendar_Season]))
     PredDat <- PredDat[PredDat[, eval(Season_Col)] == 1,]
 
-    #PredDat <- as.matrix(PredDat)
-    #PredDat <- xgboost::xgb.DMatrix(PredDat)
-
-#----------------- Random Forest (Hyperparameter Tuning) -----------------#
+#----------------------- QDA (Hyperparameter Tuning) -------------------------#
 
     # When doing Hyperparameter tuning we need to save the model in a local
     # folder so we temporarily move to the below
@@ -194,44 +191,23 @@ for (i in 8:GWRange) {
     parallelStartSocket(3)
     ptm <- proc.time()
     # Let's make a learner. Together.
-    Evt_mod <- makeLearner("classif.evtree", predict.type = "prob")
+    QDA_mod <- makeLearner("classif.lda", predict.type = "prob")
 
-    # refine the parameter values
-    ps = makeParamSet(
-    #makeIntegerParam("maxdepth", lower = 2, upper = 7),
-    makeIntegerParam("ntrees", lower = 50, upper = 400)
-    #makeNumericParam("pmutatemajor", lower = 10, upper = 40),
-    #makeNumericParam("alpha", lower = 0.5, upper = 4)
-    )
-    ctrl = makeTuneControlMBO()
-    inner = makeResampleDesc("Subsample", iters = 3)
-    # Tuning in Inner resampling loop
-    #lrn = makeTuneWrapper("classif.xgboost", resampling = inner, par.set = ps,
-    #                            control = ctrl, show.info = FALSE)
-
-    # tuning in Outer resampling loop
-    outer = makeResampleDesc("CV", iters = 3)
-    #r = resample(lrn, trainTask, resampling = outer, extract = getTuneResult,
-    #                                                    show.info = FALSE)
-
-    Params <- tuneParams(Evt_mod, task = trainTask, par.set = ps,
-                        resampling = outer, control = ctrl, measures = acc)
     parallelStop()
     proc.time() - ptm
     # Bring it back
     setwd(paste0("C:/Users/ciana/OneDrive/SONY_16M1/Football Predictions/",
           "Europe/Output Data"))
 
-#----------------- Gradient Boosting (build best model type) -----------------#
+#----------------- QDA Model Build (build best model type) -------------------#
 
-    Et_tuned <- setHyperPars(learner = Et_mod, par.vals = Params$x)
-    Etmodel <- train(Et_tuned, trainTask)
+    QDA_model <- train(QDA_mod, trainTask)
 
-#--------------- Gradient Boosting (Prediction & Context data) ---------------#
+#---------------------- QDA (Prediction & Context data) ----------------------#
 
     # Fit is a column of our predicted values
     # Act is the actual result in terms of goal difference
-    Fit <- predict(Etmodel, newdata = PredDat)
+    Fit <- predict(QDA_model, newdata = PredDat)
     Fit <- as.data.table(Fit)
 
     P_Draw <- Fit$prob.1
@@ -302,9 +278,9 @@ Accuracy <- setDT(Calc_df[Season == Season_prediction, j = list(Cor_Pred =
 mean(Euro_T_Cl_Same))])
 Acc_Statement <- paste0('The accuracy is ', Accuracy)
 # type of model run
-Model_Type <- 'This is a: European Classification XGBoost'
+Model_Type <- 'This is a: European Classification LDA Model'
 # Any Notes
-Notes <- 'New tuning method fully embracing MLR'
+Notes <- 'Tester'
 # Straight Profitability
 Profit <- setDT(Calc_df[Season == Season_prediction, j = list(
 sum(Euro_T_Cl_Winnings))]) - setDT(Calc_df[Season == Season_prediction, j = list(
