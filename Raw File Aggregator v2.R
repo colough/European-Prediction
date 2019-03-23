@@ -116,6 +116,110 @@ for (i in 1:length(Country)) {
                             Max_MN, Match_Number_1, Season)]
 
 #---------------------------- Create the Tier Info ---------------------------#
-    GW_Data <- Agg_Data[, j = list(max(Game_Week)), by = list(Season, Div)]
+    #GW_Data <- Agg_Data[, j = list(max(Game_Week)), by = list(Season, Div)]
+    Tier_Cols <- c("Date","Div","HomeTeam","AwayTeam","FTR")
+    Tier <- Agg_Data[,Tier_Cols, with=FALSE]
+    # Create a new table thet is going to have the results and then the points
+    Tier[, Home_Win := 0L]
+    Tier[FTR == "H", Home_Win := 1L]
+    Tier[, Away_Win := 0L]
+    Tier[FTR == "A", Away_Win := 1L]
+    Tier[, Draw := 0L]
+    Tier[FTR == "D", Draw := 1L]
+    Tier[, Team_Result := "Draw"]
+    Tier[Home_Win == 1, Team_Result := HomeTeam]
+    Tier[Away_Win == 1, Team_Result := AwayTeam]
+    Tier[, Points := 3L]
+    Tier[Team_Result == "Draw", Points := 1L]
+    Tier[, Home_Points := 1L]
+    Tier[Home_Win == 1, Home_Points := 3]
+    Tier[Away_Win == 1, Home_Points := 0]
+    Tier[, Away_Points := 1L]
+    Tier[Away_Win == 1, Away_Points := 3]
+    Tier[Home_Win == 1, Away_Points := 0]
 
+    # Combine the division and the team
+    Tier[, DivHTeam := paste0(Div, HomeTeam)]
+    Tier[, DivATeam := paste0(Div, AwayTeam)]
+    # Create points
+    TierHP <- Tier[, j = list(Sum_HP = sum(Home_Points),
+                            Num_Matches = .N), by = list(DivHTeam)]
+    TierAP <- Tier[, j = list(Sum_AP = sum(Away_Points),
+                            Num_AMatches = .N), by = list(DivATeam)]
+    # Join and aggregate up by team
+    Tier_Points <- setDT(TierHP)[TierAP, Sum_AP :=
+                            i.Sum_AP, on = c("DivHTeam" = "DivATeam")]
+    Tier_Points <- setDT(Tier_Points)[TierAP, Num_AMatches :=
+                            i.Num_AMatches, on = c("DivHTeam" = "DivATeam")]
+    Tier_Points$Total_Points <- Tier_Points$Sum_AP + Tier_Points$Sum_HP
+    Tier_Points$Total_Matches <- Tier_Points$Num_Matches +
+                                        Tier_Points$Num_AMatches
+    Tier_Points$Average_Total_Points <- Tier_Points$Total_Points /
+                                    Tier_Points$Total_Matches
+    Tier_Points$Average_HPoints <- Tier_Points$Sum_HP /
+                                    Tier_Points$Num_Matches
+    Tier_Points$Average_APoints <- Tier_Points$Sum_AP /
+                                    Tier_Points$Num_AMatches
+   
+    # Classify them
+    Tier_Points$Total_Tier <- cut(Tier_Points$Average_Total_Points,
+                        breaks = quantile(Tier_Points$Average_Total_Points),
+                        labels = 4:1, include.lowest=T)
+    Tier_Points$Home_Tier <- cut(Tier_Points$Average_HPoints,
+                        breaks = quantile(Tier_Points$Average_HPoints),
+                        labels = 4:1, include.lowest = T)
+    Tier_Points$Away_Tier <- cut(Tier_Points$Average_APoints,
+                        breaks = quantile(Tier_Points$Average_APoints),
+                        labels = 4:1, include.lowest = T)
+    # Join back to Tier
+    setDT(Tier)[Tier_Points, Home_Team_Tier := i.Home_Tier,
+    on = c("DivHTeam" = "DivHTeam")]
+    setDT(Tier)[Tier_Points, Away_Team_Tier := i.Away_Tier,
+    on = c("DivATeam" = "DivHTeam")]
+    # Calculate the Tier summary stats
+    # The below two creations are based off the individual games,but that 
+    # gives a little too much swing for my liking so I cut it down to just
+    # the second two which is based on summaries of the tiered teams
+    Team_Tier_Goodies_H <- Tier[, j = list(Home_Tier_Avg_Points =
+                                mean(Home_Points), Home_Tier_St_Dev =
+                                sd(Home_Points)), by = list(Home_Team_Tier)]
+    Team_Tier_Goodies_A <- Tier[, j = list(Away_Tier_Avg_Points =
+                                mean(Away_Points), Away_Tier_St_Dev =
+                                sd(Away_Points)), by = list(Away_Team_Tier)]
+
+    Team_Tier_Goodies_H1 <- Tier_Points[, j = list(Home_Tier_Avg_Points =
+                                mean(Average_HPoints), Home_Tier_St_Dev =
+                                sd(Average_HPoints)), by = list(Home_Tier)]
+    Team_Tier_Goodies_A1 <- Tier_Points[, j = list(Away_Tier_Avg_Points =
+                                mean(Average_APoints), Away_Tier_St_Dev =
+                                sd(Average_APoints)), by = list(Away_Tier)]
+    # Join back to Tier table
+    setDT(Tier)[Team_Tier_Goodies_H1, Home_Tier_Avg_Points :=
+        i.Home_Tier_Avg_Points, on = c("Home_Team_Tier" = "Home_Tier")]
+    setDT(Tier)[Team_Tier_Goodies_H1, Home_Tier_St_Dev :=
+        i.Home_Tier_St_Dev, on = c("Home_Team_Tier" = "Home_Tier")]
+    setDT(Tier)[Team_Tier_Goodies_A1, Away_Tier_Avg_Points :=
+        i.Away_Tier_Avg_Points, on = c("Away_Team_Tier" = "Away_Tier")]
+    setDT(Tier)[Team_Tier_Goodies_A1, Away_Tier_St_Dev :=
+        i.Away_Tier_St_Dev, on = c("Away_Team_Tier" = "Away_Tier")]
+
+    # Aaaaand back to Agg_Data:
+    setDT(Agg_Data)[Tier, Home_Tier_Avg_Points :=
+        i.Home_Tier_Avg_Points, on = c("Date" = "Date", 
+        "HomeTeam = HomeTeam", "AwayTeam = AwayTeam")]
+    setDT(Agg_Data)[Tier, Home_Tier_St_Dev :=
+        i.Home_Tier_St_Dev, on = c("Date" = "Date",
+        "HomeTeam = HomeTeam", "AwayTeam = AwayTeam")]
+    setDT(Agg_Data)[Tier, Away_Tier_Avg_Points :=
+        i.Away_Tier_Avg_Points, on = c("Date" = "Date",
+        "HomeTeam = HomeTeam", "AwayTeam = AwayTeam")]
+    setDT(Agg_Data)[Tier, Away_Tier_St_Dev :=
+        i.Away_Tier_St_Dev, on = c("Date" = "Date",
+        "HomeTeam = HomeTeam", "AwayTeam = AwayTeam")]
+    setDT(Agg_Data)[Tier, Home_Team_Tier :=
+        i.Home_Team_Tier, on = c("Date" = "Date",
+        "HomeTeam = HomeTeam", "AwayTeam = AwayTeam")]
+    setDT(Agg_Data)[Tier, Away_Team_Tier :=
+        i.Away_Team_Tier, on = c("Date" = "Date",
+        "HomeTeam = HomeTeam", "AwayTeam = AwayTeam")]
 }
